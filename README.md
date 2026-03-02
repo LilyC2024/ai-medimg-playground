@@ -1,4 +1,4 @@
-﻿# AI Medical Imaging Playground
+﻿# AI Medical Imaging Playground 2026
 
 A minimal, practical workspace for experimenting with medical imaging workflows in Python.
 
