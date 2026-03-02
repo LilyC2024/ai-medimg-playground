@@ -9,6 +9,11 @@ import numpy as np
 import pydicom
 from pydicom.dataset import FileDataset
 
+try:
+    import SimpleITK as sitk
+except ImportError:  # pragma: no cover - dependency is expected in runtime envs
+    sitk = None
+
 
 @dataclass(frozen=True)
 class SeriesMetadata:
@@ -55,6 +60,42 @@ class _SliceRecord:
     intercept: float
 
 
+def _transfer_syntax_uid(dataset: FileDataset) -> Any:
+    file_meta = getattr(dataset, "file_meta", None)
+    if file_meta is not None:
+        transfer_syntax = file_meta.get("TransferSyntaxUID")
+        if transfer_syntax is not None:
+            return transfer_syntax
+    return dataset.get("TransferSyntaxUID")
+
+
+def _decode_with_simpleitk(path: Path) -> np.ndarray:
+    if sitk is None:
+        raise RuntimeError(
+            "SimpleITK is required to decode compressed DICOM pixel data but is not installed."
+        )
+    image = sitk.ReadImage(str(path))
+    array = sitk.GetArrayFromImage(image)
+    if array.ndim == 3 and array.shape[0] == 1:
+        array = array[0]
+    if array.ndim != 2:
+        raise ValueError(f"Expected 2D slice, got shape {array.shape} while reading {path}.")
+    return array.astype(np.float32)
+
+
+def _decode_pixels(dataset: FileDataset, path: Path) -> np.ndarray:
+    transfer_syntax = _transfer_syntax_uid(dataset)
+    if bool(getattr(transfer_syntax, "is_compressed", False)):
+        return _decode_with_simpleitk(path)
+    try:
+        return dataset.pixel_array.astype(np.float32)
+    except RuntimeError as exc:
+        # Fallback for malformed headers where transfer syntax compression flag is missing.
+        if "decompress" in str(exc).lower():
+            return _decode_with_simpleitk(path)
+        raise
+
+
 def _get_z_position(dataset: FileDataset) -> float:
     image_position = dataset.get("ImagePositionPatient")
     if image_position and len(image_position) >= 3:
@@ -78,7 +119,7 @@ def _read_slice(path: Path) -> _SliceRecord:
     if "PixelData" not in dataset:
         raise ValueError(f"File has no PixelData: {path}")
 
-    pixels = dataset.pixel_array.astype(np.float32)
+    pixels = _decode_pixels(dataset, path)
     slope = float(dataset.get("RescaleSlope", 1.0))
     intercept = float(dataset.get("RescaleIntercept", 0.0))
     z_position = _get_z_position(dataset)

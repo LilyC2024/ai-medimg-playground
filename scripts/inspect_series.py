@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -13,7 +14,6 @@ if str(SRC_DIR) not in sys.path:
 
 from config import load_app_config  # noqa: E402
 from dicom_loader import load_dicom_series, write_metadata_json  # noqa: E402
-from visualization import save_hu_histogram, save_montage, show_axial_scroll  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -41,6 +41,10 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
+
+    if not args.show:
+        os.environ.setdefault("MPLBACKEND", "Agg")
+    from visualization import save_hu_histogram, save_montage, show_axial_scroll  # noqa: WPS433,E402
 
     config = load_app_config(series_dir=args.series_dir, output_dir=args.output_dir)
     volume = load_dicom_series(config.series_dir)

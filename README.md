@@ -1,69 +1,68 @@
-﻿# AI Medical Imaging Playground 2026
+# Day 1: DICOM Ingestion and Validation
 
-A minimal, practical workspace for experimenting with medical imaging workflows in Python.
+This repository contains the Day 1 workflow for loading a CT DICOM series, converting to HU, validating ordering, and exporting diagnostics.
 
-## What This Repository Is For
-
-Use this project to:
-- prototype image processing and analysis pipelines,
-- test model ideas on local datasets,
-- keep notes and exploratory notebooks organized.
-
-## Project Layout
+## Project Structure
 
 ```text
 ai-medimg-playground/
-|- src/          # Python source code
-|- notebooks/    # Jupyter notebooks and experiments
-|- docs/         # Notes and documentation
-|- data/         # Local datasets (git-ignored, keep only .gitkeep)
-|- models/       # Trained weights/artifacts (git-ignored, keep only .gitkeep)
-|- outputs/      # Generated outputs (git-ignored, keep only .gitkeep)
+|- data/                    # Local DICOM data (git-ignored except .gitkeep)
+|- outputs/                 # Generated images/metadata (git-ignored except .gitkeep)
+|- scripts/inspect_series.py
+|- src/config.py
+|- src/dicom_loader.py
+|- src/visualization.py
+|- tests/test_loader.py
 |- requirements.txt
-`- README.md
+`- pyproject.toml
 ```
 
-## Quick Start
-
-### 1. Create and activate a virtual environment
+## Environment Setup
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-### 2. Install dependencies
-
-```powershell
 python -m pip install -r requirements.txt
 ```
 
-### 3. Start working
+## Configure Data Path (No Hard-Coded Paths)
 
-- Add reusable code to `src/`
-- Explore ideas in `notebooks/`
-- Store temporary outputs in `outputs/`
+By default, the loader expects `data/dicom_series_01/`.
+You can override with environment variables or CLI flags:
 
-## Dependencies
+```powershell
+$env:DICOM_SERIES_DIR="C:\path\to\your\series"
+$env:DICOM_OUTPUT_DIR="C:\path\to\your\outputs"
+```
 
-Core libraries are listed in [`requirements.txt`](./requirements.txt), including:
-- image I/O and processing (`pydicom`, `SimpleITK`, `scikit-image`, `opencv-python`)
-- numerical tooling (`numpy`, `scipy`, `pandas`)
-- deep learning and inference (`torch`, `monai`, `onnxruntime`)
-- lightweight serving (`fastapi`, `uvicorn`)
+## Run Inspection + Export Diagnostics
 
-## Git and Data Policy
+```powershell
+.\.venv\Scripts\python.exe scripts\inspect_series.py
+```
 
-This repo intentionally does **not** track:
-- local datasets,
-- trained model files,
-- generated outputs,
-- virtual environments.
+This writes:
+- `outputs/day1_metadata.json`
+- `outputs/day1_hu_hist.png`
+- `outputs/day1_montage.png`
 
-The `.gitignore` keeps only the placeholder `.gitkeep` files in `data/`, `models/`, and `outputs/`.
+To open an interactive axial scroll viewer with brain/bone windowing:
 
-## Suggested Next Steps
+```powershell
+.\.venv\Scripts\python.exe scripts\inspect_series.py --show
+```
 
-- Add a first pipeline module in `src/` (for example `src/preprocess.py`)
-- Create a starter notebook in `notebooks/`
-- Document your experiment workflow in `docs/`
+## Run Unit Tests
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+## Slope/Intercept and Windowing (5-8 line explainer)
+
+- Raw CT pixels are stored as scanner values, not physical HU.
+- HU conversion is slice-wise: `HU = pixel_value * RescaleSlope + RescaleIntercept`.
+- Typical air appears near `-1000 HU`; dense bone is high positive HU.
+- Brain soft tissue is best viewed with brain window (`L=40, W=80`).
+- Bone detail is emphasized with bone window (`L=600, W=2000`).
+- Histogram + montage outputs are quick checks that conversion and contrast settings are sensible.
