@@ -1,0 +1,14 @@
+pydicom
+SimpleITK
+numpy
+scipy
+matplotlib
+scikit-image
+opencv-python
+pandas
+tqdm
+onnxruntime
+fastapi
+uvicorn
+monai
+torch

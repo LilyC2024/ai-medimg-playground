@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling and caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local data and generated artifacts
+data/**
+!data/.gitkeep
+models/**
+!models/.gitkeep
+outputs/**
+!outputs/.gitkeep
+
+# Common ML artifact extensions
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.h5
+*.pb
