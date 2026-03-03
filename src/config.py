@@ -33,9 +33,9 @@ class PreprocessConfig:
     # HU threshold for separating air from patient/head region.
     head_threshold_hu: float = -350.0
     # Morphology cleanup iterations for binary opening (remove tiny noise blobs).
-    mask_opening_iterations: int = 1
+    mask_opening_iterations: int = 10
     # Morphology cleanup iterations for binary closing (fill small mask holes).
-    mask_closing_iterations: int = 2
+    mask_closing_iterations: int = 10
     # Margin (z, y, x) in millimeters added around the detected head bounding box.
     crop_margin_mm_zyx: tuple[float, float, float] = (2.0, 10.0, 10.0)
 
@@ -55,12 +55,12 @@ class SegmentationConfig:
     """Tunable parameters for Day 3 classical segmentation baseline."""
 
     # Bone is typically high HU. Higher threshold gives cleaner but thinner skull masks.
-    bone_threshold_hu: float = 300.0
+    bone_threshold_hu: float = 800.0
     # Morphology cleanup for bone mask.
-    bone_opening_iterations: int = 1
-    bone_closing_iterations: int = 1
+    bone_opening_iterations: int = 20
+    bone_closing_iterations: int = 20
     # Remove tiny disconnected islands below this size (voxels).
-    bone_min_component_voxels: int = 64
+    bone_min_component_voxels: int = 32
     # Keep only largest connected component to enforce anatomical plausibility.
     bone_keep_largest_component: bool = True
 
@@ -71,10 +71,10 @@ class SegmentationConfig:
     brain_window_norm_min: float = 0.05
     brain_window_norm_max: float = 0.95
     # Additional HU gate to suppress air/non-patient regions.
-    brain_head_threshold_hu: float = -300.0
+    brain_head_threshold_hu: float = -100.0
     # Morphology cleanup for brain mask.
-    brain_opening_iterations: int = 0
-    brain_closing_iterations: int = 2
+    brain_opening_iterations: int = 10
+    brain_closing_iterations: int = 10
     # Fill interior holes after cleanup.
     brain_fill_holes: bool = True
     # Remove tiny disconnected islands below this size (voxels).
@@ -84,7 +84,7 @@ class SegmentationConfig:
 
     # Overlay export controls.
     overlay_max_slices: int | None = None
-    overlay_min_representative_slices: int = 10
+    overlay_min_representative_slices: int = 20
 
 
 @dataclass(frozen=True)

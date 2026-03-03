@@ -76,7 +76,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--bone-threshold-hu",
         type=float,
-        default=300.0,
+        default=-100.0,
         help="HU threshold for bone mask candidate.",
     )
     parser.add_argument("--bone-open-iters", type=int, default=1, help="Bone mask opening iterations.")
@@ -106,7 +106,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--brain-head-threshold-hu",
         type=float,
-        default=-300.0,
+        default=-10.0,
         help="Additional HU gate for brain-ish candidate.",
     )
     parser.add_argument("--brain-open-iters", type=int, default=0, help="Brain mask opening iterations.")
@@ -134,7 +134,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--overlay-min-representative",
         type=int,
-        default=10,
+        default=20,
         help="Minimum representative slices when overlay capping is used.",
     )
     return parser
