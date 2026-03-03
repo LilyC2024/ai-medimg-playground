@@ -189,3 +189,54 @@ def save_day2_before_after(
     fig.tight_layout()
     fig.savefig(output_file, dpi=180)
     plt.close(fig)
+
+
+def save_day3_slice_overlays(
+    volume_hu: np.ndarray,
+    brain_mask_3d: np.ndarray,
+    bone_mask_3d: np.ndarray,
+    output_dir: str | Path,
+    max_slices: int | None = None,
+    min_representative_slices: int = 10,
+) -> list[Path]:
+    """Save per-slice overlay PNGs for qualitative review.
+
+    Parameters to tune:
+    - `max_slices`: optional cap on number of slices exported for very large studies.
+    - `min_representative_slices`: ensures enough coverage when a cap is active.
+    """
+
+    output_path = Path(output_dir).expanduser().resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    total_slices = int(volume_hu.shape[0])
+    if max_slices is None or max_slices >= total_slices:
+        slice_indices = np.arange(total_slices, dtype=int)
+    else:
+        requested = max(int(min_representative_slices), int(max_slices))
+        requested = min(requested, total_slices)
+        slice_indices = np.linspace(0, total_slices - 1, num=requested, dtype=int)
+
+    saved_files: list[Path] = []
+    for z_idx in slice_indices:
+        background = apply_window(volume_hu[z_idx], center=BRAIN_WINDOW[0], width=BRAIN_WINDOW[1])
+        brain_slice = brain_mask_3d[z_idx].astype(bool)
+        bone_slice = bone_mask_3d[z_idx].astype(bool)
+
+        fig, axis = plt.subplots(1, 1, figsize=(5.2, 5.2))
+        axis.imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        if np.any(brain_slice):
+            axis.contour(brain_slice, levels=[0.5], colors=["#00FF85"], linewidths=1.1)
+        if np.any(bone_slice):
+            axis.contour(bone_slice, levels=[0.5], colors=["#FF5C5C"], linewidths=1.0)
+
+        axis.set_title(f"z={z_idx} | green=brain-ish, red=bone", fontsize=9)
+        axis.axis("off")
+        fig.tight_layout()
+
+        file_path = output_path / f"slice_{z_idx:03d}.png"
+        fig.savefig(file_path, dpi=150)
+        plt.close(fig)
+        saved_files.append(file_path)
+
+    return saved_files

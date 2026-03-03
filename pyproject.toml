@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-medimg-playground"
-version = "0.2.0"
-description = "Day 1-2 DICOM ingestion, preprocessing, and diagnostics workflow."
+version = "0.3.0"
+description = "Day 1-3 DICOM ingestion, preprocessing, and classical segmentation baseline."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

@@ -51,11 +51,49 @@ class PreprocessConfig:
 
 
 @dataclass(frozen=True)
+class SegmentationConfig:
+    """Tunable parameters for Day 3 classical segmentation baseline."""
+
+    # Bone is typically high HU. Higher threshold gives cleaner but thinner skull masks.
+    bone_threshold_hu: float = 300.0
+    # Morphology cleanup for bone mask.
+    bone_opening_iterations: int = 1
+    bone_closing_iterations: int = 1
+    # Remove tiny disconnected islands below this size (voxels).
+    bone_min_component_voxels: int = 64
+    # Keep only largest connected component to enforce anatomical plausibility.
+    bone_keep_largest_component: bool = True
+
+    # Brain-ish candidate via brain window normalization then thresholding.
+    brain_window_center: float = 40.0
+    brain_window_width: float = 120.0
+    # Normalized window range to keep as brain-ish tissue candidate.
+    brain_window_norm_min: float = 0.05
+    brain_window_norm_max: float = 0.95
+    # Additional HU gate to suppress air/non-patient regions.
+    brain_head_threshold_hu: float = -300.0
+    # Morphology cleanup for brain mask.
+    brain_opening_iterations: int = 0
+    brain_closing_iterations: int = 2
+    # Fill interior holes after cleanup.
+    brain_fill_holes: bool = True
+    # Remove tiny disconnected islands below this size (voxels).
+    brain_min_component_voxels: int = 256
+    # Keep only largest connected component to enforce anatomical plausibility.
+    brain_keep_largest_component: bool = True
+
+    # Overlay export controls.
+    overlay_max_slices: int | None = None
+    overlay_min_representative_slices: int = 10
+
+
+@dataclass(frozen=True)
 class AppConfig:
     series_dir: Path
     output_dir: Path
     processed_dir: Path
     preprocess: PreprocessConfig
+    segmentation: SegmentationConfig
 
 
 def _resolve_path(raw_value: str | None, fallback: Path) -> Path:
@@ -69,6 +107,7 @@ def load_app_config(
     output_dir: str | None = None,
     processed_dir: str | None = None,
     preprocess: PreprocessConfig | None = None,
+    segmentation: SegmentationConfig | None = None,
 ) -> AppConfig:
     configured_series_dir = series_dir or os.getenv("DICOM_SERIES_DIR")
     configured_output_dir = output_dir or os.getenv("DICOM_OUTPUT_DIR")
@@ -78,4 +117,5 @@ def load_app_config(
         output_dir=_resolve_path(configured_output_dir, DEFAULT_OUTPUT_DIR),
         processed_dir=_resolve_path(configured_processed_dir, DEFAULT_PROCESSED_DIR),
         preprocess=preprocess or PreprocessConfig(),
+        segmentation=segmentation or SegmentationConfig(),
     )
