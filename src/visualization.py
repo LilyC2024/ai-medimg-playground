@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 import numpy as np
 
+from preprocessing import BoundingBox3D
 
 BRAIN_WINDOW = (40.0, 80.0)
 BONE_WINDOW = (600.0, 2000.0)
@@ -126,3 +128,64 @@ def show_axial_scroll(volume_hu: np.ndarray) -> AxialScrollViewer:
     viewer = AxialScrollViewer(volume_hu)
     plt.show()
     return viewer
+
+
+def save_day2_before_after(
+    resampled_volume_hu: np.ndarray,
+    cropped_volume_hu: np.ndarray,
+    processed_volume: np.ndarray,
+    crop_bbox_zyx: BoundingBox3D,
+    output_path: str | Path,
+) -> None:
+    """Save visual QA image for Day 2 preprocessing.
+
+    The figure shows:
+    - pre-crop brain/bone windows on one slice,
+    - crop box overlay to verify anatomy preservation,
+    - post-crop + normalized result for comparison.
+    """
+
+    output_file = Path(output_path).expanduser().resolve()
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Slice index inside the full resampled volume.
+    z_idx = max(crop_bbox_zyx.z_min, min(crop_bbox_zyx.z_max - 1, resampled_volume_hu.shape[0] // 2))
+
+    # Matching slice index in the cropped volume coordinates.
+    cropped_z_idx = int(np.clip(z_idx - crop_bbox_zyx.z_min, 0, cropped_volume_hu.shape[0] - 1))
+
+    before_brain = apply_window(resampled_volume_hu[z_idx], *BRAIN_WINDOW)
+    before_bone = apply_window(resampled_volume_hu[z_idx], *BONE_WINDOW)
+    after_brain = apply_window(cropped_volume_hu[cropped_z_idx], *BRAIN_WINDOW)
+    after_norm = processed_volume[cropped_z_idx]
+
+    fig, axes = plt.subplots(1, 4, figsize=(15, 4.6))
+    axes[0].imshow(before_brain, cmap="gray", vmin=0.0, vmax=1.0)
+    axes[0].set_title("Before crop\nBrain W=80 L=40")
+    axes[0].axis("off")
+
+    axes[1].imshow(before_bone, cmap="gray", vmin=0.0, vmax=1.0)
+    axes[1].set_title("Before crop + ROI box\nBone W=2000 L=600")
+    rectangle = Rectangle(
+        (crop_bbox_zyx.x_min, crop_bbox_zyx.y_min),
+        crop_bbox_zyx.x_max - crop_bbox_zyx.x_min,
+        crop_bbox_zyx.y_max - crop_bbox_zyx.y_min,
+        fill=False,
+        linewidth=2.0,
+        edgecolor="#FF6B35",
+    )
+    axes[1].add_patch(rectangle)
+    axes[1].axis("off")
+
+    axes[2].imshow(after_brain, cmap="gray", vmin=0.0, vmax=1.0)
+    axes[2].set_title("After crop\nBrain W=80 L=40")
+    axes[2].axis("off")
+
+    axes[3].imshow(after_norm, cmap="gray", vmin=0.0, vmax=1.0)
+    axes[3].set_title("After clip+normalize\n[0, 1]")
+    axes[3].axis("off")
+
+    fig.suptitle(f"Day 2 Preprocess QA (z={z_idx}, cropped-z={cropped_z_idx})", fontsize=12)
+    fig.tight_layout()
+    fig.savefig(output_file, dpi=180)
+    plt.close(fig)

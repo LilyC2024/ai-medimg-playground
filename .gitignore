@@ -32,6 +32,8 @@ models/**
 !models/.gitkeep
 outputs/**
 !outputs/.gitkeep
+data_processed/**
+!data_processed/.gitkeep
 
 # Common ML artifact extensions
 *.pt
