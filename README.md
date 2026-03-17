@@ -1,11 +1,12 @@
 # AI Medical Imaging Playground
 
-Reference pipeline for CT head volumes across five stages:
+Reference pipeline for CT head volumes across six stages:
 - Day 1: robust DICOM ingestion and HU validation
 - Day 2: preprocessing (resampling, ROI crop, normalization, cache)
 - Day 3: classical segmentation baseline (bone + brain-ish pseudo labels)
 - Day 4: 2.5D dataset builder, index CSV, and training-ready dataloaders
 - Day 5: lightweight 2.5D U-Net training, inference, and overlay review
+- Day 6: robustness checks, postprocessing, uncertainty proxy, and standardized reporting
 
 ## Quick Start
 
@@ -56,6 +57,13 @@ Day 5 (lightweight U-Net training on CPU + full-series inference):
 .\.venv\Scripts\python.exe scripts\infer.py
 ```
 
+Day 6 (reporting and automated checks):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\report.py
+.\.venv\Scripts\python.exe scripts\check.py
+```
+
 Run all tests:
 
 ```powershell
@@ -97,6 +105,14 @@ Day 5:
 - `outputs/day5_train_report.json`
 - `outputs/day5_infer_report.json`
 
+Day 6:
+- `src/robustness.py`
+- `scripts/report.py`
+- `scripts/check.py`
+- `docs/model_card.md`
+- `outputs/report.md`
+- `outputs/report_montage.png`
+
 ## Pipeline Summary
 
 ```text
@@ -112,6 +128,7 @@ Raw DICOM series
   -> PyTorch Dataset/DataLoader for training-time ingestion
   -> lightweight 2.5D U-Net training on pseudo labels
   -> full-series inference + overlay comparison against classical baseline
+  -> uncertainty proxy + postprocessing + standardized evaluation report
 ```
 
 ## Key Tuning Parameters
@@ -141,6 +158,10 @@ Lightweight DL training (`scripts/train.py`):
 Inference (`scripts/infer.py`):
 - runtime: `--checkpoint`, `--batch-size`, `--device`
 - paths: `--index-path`, `--processed-dir`, `--output-dir`
+- robustness: `--uncertainty-method`, `--disable-postprocess`, `--brain-min-voxels`, `--bone-min-voxels`
+
+Reporting (`scripts/report.py`):
+- paths: `--output-dir`, `--processed-dir`, `--report-path`
 
 ## Known Limitations
 
@@ -149,6 +170,7 @@ Inference (`scripts/infer.py`):
 - Thick-slice scans can reduce 3D continuity and segmentation stability.
 - The current repository contains one CT series, so leakage-safe Day 4 splitting falls back to `train` only until more patient/series groups are added.
 - Day 5 supervision still uses Day 3 pseudo labels, so the reported Dice/IoU values validate the learning pipeline, not real clinical accuracy.
+- Day 6 uncertainty scores are heuristic review aids, not calibrated probabilities of failure.
 
 ## Repository Layout
 
@@ -160,12 +182,15 @@ scripts/
   make_index.py
   train.py
   infer.py
+  report.py
+  check.py
 src/
   dicom_loader.py
   preprocessing.py
   baselines/classical_seg.py
   data/ct25d_dataset.py
   models/unet_small.py
+  robustness.py
   visualization.py
   config.py
 tests/
@@ -174,4 +199,5 @@ tests/
   test_classical_seg.py
   test_ct25d_dataset.py
   test_unet_metrics.py
+  test_robustness.py
 ```

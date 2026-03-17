@@ -225,6 +225,7 @@ def main() -> int:
         "normalize_range": [float(config.preprocess.normalize_min), float(config.preprocess.normalize_max)],
         "z_spacing_preserved": z_kept_original,
         "cached_spacing_zyx_mm": [float(v) for v in cached_spacing_zyx],
+        "dicom_validation_messages": list(dicom_volume.metadata.validation_messages),
         "timings": timings,
         "preprocess_config": {
             "target_spacing_xy_mm": config.preprocess.target_spacing_xy_mm,
@@ -265,6 +266,10 @@ def main() -> int:
             "Note: z-spacing was preserved. "
             "This usually happens when --target-z-mm is omitted or original z spacing is coarse.",
         )
+    if dicom_volume.metadata.validation_messages:
+        print("Validation notes:")
+        for message in dicom_volume.metadata.validation_messages:
+            print(f"- {message}")
 
     return 0
 

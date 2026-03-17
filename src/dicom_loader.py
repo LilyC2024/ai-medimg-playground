@@ -9,6 +9,8 @@ import numpy as np
 import pydicom
 from pydicom.dataset import FileDataset
 
+from robustness import validate_spacing_zyx
+
 try:
     import SimpleITK as sitk
 except ImportError:  # pragma: no cover - dependency is expected in runtime envs
@@ -27,6 +29,7 @@ class SeriesMetadata:
     rescale_slope_range: tuple[float, float]
     rescale_intercept_range: tuple[float, float]
     z_positions: list[float]
+    validation_messages: list[str]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +43,7 @@ class SeriesMetadata:
             "rescale_slope_range": list(self.rescale_slope_range),
             "rescale_intercept_range": list(self.rescale_intercept_range),
             "z_positions": self.z_positions,
+            "validation_messages": self.validation_messages,
         }
 
 
@@ -96,7 +100,7 @@ def _decode_pixels(dataset: FileDataset, path: Path) -> np.ndarray:
         raise
 
 
-def _get_z_position(dataset: FileDataset) -> float:
+def _get_z_position(dataset: FileDataset, path: Path) -> float:
     image_position = dataset.get("ImagePositionPatient")
     if image_position and len(image_position) >= 3:
         return float(image_position[2])
@@ -104,7 +108,10 @@ def _get_z_position(dataset: FileDataset) -> float:
         return float(dataset.SliceLocation)
     if "InstanceNumber" in dataset:
         return float(dataset.InstanceNumber)
-    raise ValueError("DICOM slice is missing ImagePositionPatient/SliceLocation/InstanceNumber.")
+    raise ValueError(
+        "DICOM slice is missing all position tags needed for ordering "
+        f"(ImagePositionPatient, SliceLocation, InstanceNumber): {path}",
+    )
 
 
 def _list_dicom_files(series_dir: Path) -> list[Path]:
@@ -122,7 +129,7 @@ def _read_slice(path: Path) -> _SliceRecord:
     pixels = _decode_pixels(dataset, path)
     slope = float(dataset.get("RescaleSlope", 1.0))
     intercept = float(dataset.get("RescaleIntercept", 0.0))
-    z_position = _get_z_position(dataset)
+    z_position = _get_z_position(dataset, path)
     instance_number = int(dataset.get("InstanceNumber", 0))
 
     return _SliceRecord(
@@ -143,6 +150,27 @@ def _slice_spacing_z(z_positions: np.ndarray, first_dataset: FileDataset) -> flo
         if non_zero_diffs.size:
             return float(np.median(non_zero_diffs))
     return float(first_dataset.get("SliceThickness", 1.0))
+
+
+def _pixel_spacing_from_dataset(first_dataset: FileDataset, series_path: Path) -> tuple[float, float]:
+    pixel_spacing = first_dataset.get("PixelSpacing")
+    if pixel_spacing is None:
+        pixel_spacing = first_dataset.get("ImagerPixelSpacing")
+
+    if pixel_spacing is None:
+        raise ValueError(
+            "DICOM series is missing PixelSpacing/ImagerPixelSpacing. "
+            f"Cannot compute physical spacing for: {series_path}",
+        )
+    if len(pixel_spacing) < 2:
+        raise ValueError(
+            "DICOM spacing tag is malformed: expected 2 values in PixelSpacing/ImagerPixelSpacing, "
+            f"got {pixel_spacing!r} for {series_path}",
+        )
+
+    row_spacing = float(pixel_spacing[0])
+    col_spacing = float(pixel_spacing[1])
+    return row_spacing, col_spacing
 
 
 def _orientation_or_default(first_dataset: FileDataset) -> tuple[float, float, float, float, float, float]:
@@ -176,11 +204,11 @@ def load_dicom_series(series_dir: str | Path) -> DicomVolume:
     ).astype(np.float32)
 
     first_dataset = records[0].dataset
-    pixel_spacing = first_dataset.get("PixelSpacing", [1.0, 1.0])
-    row_spacing = float(pixel_spacing[0]) if len(pixel_spacing) >= 1 else 1.0
-    col_spacing = float(pixel_spacing[1]) if len(pixel_spacing) >= 2 else row_spacing
+    row_spacing, col_spacing = _pixel_spacing_from_dataset(first_dataset, series_path)
     z_positions = np.asarray([record.z_position for record in records], dtype=np.float32)
     spacing_z = _slice_spacing_z(z_positions, first_dataset)
+    spacing_zyx = (spacing_z, row_spacing, col_spacing)
+    validation_messages = validate_spacing_zyx(spacing_zyx)
 
     slopes = np.asarray([record.slope for record in records], dtype=np.float32)
     intercepts = np.asarray([record.intercept for record in records], dtype=np.float32)
@@ -191,11 +219,12 @@ def load_dicom_series(series_dir: str | Path) -> DicomVolume:
         slice_count=len(records),
         rows=int(first_shape[0]),
         columns=int(first_shape[1]),
-        spacing_zyx=(spacing_z, row_spacing, col_spacing),
+        spacing_zyx=spacing_zyx,
         orientation_lps=_orientation_or_default(first_dataset),
         rescale_slope_range=(float(slopes.min()), float(slopes.max())),
         rescale_intercept_range=(float(intercepts.min()), float(intercepts.max())),
         z_positions=[float(value) for value in z_positions.tolist()],
+        validation_messages=validation_messages,
     )
     return DicomVolume(volume_hu=volume_hu, metadata=metadata)
 

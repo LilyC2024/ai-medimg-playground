@@ -356,6 +356,7 @@ def main() -> int:
         "input_shape_zyx": [int(v) for v in dicom_volume.volume_hu.shape],
         "cropped_shape_zyx": [int(v) for v in preprocess_result.cropped_volume_hu.shape],
         "spacing_zyx_mm": [float(v) for v in preprocess_result.resampled_spacing_zyx],
+        "dicom_validation_messages": list(dicom_volume.metadata.validation_messages),
         "pseudo_labels_volume_path": str(pseudo_volume_path),
         "per_slice_mask_count": int(saved_slice_count),
         "overlays_dir": str(overlays_dir),
@@ -406,6 +407,10 @@ def main() -> int:
         "Timing (seconds): "
         f"raw_load={raw_load_seconds:.3f}, preprocess={preprocess_seconds:.3f}, segmentation={seg_seconds:.3f}",
     )
+    if dicom_volume.metadata.validation_messages:
+        print("Validation notes:")
+        for message in dicom_volume.metadata.validation_messages:
+            print(f"- {message}")
     if quality_flags:
         print("Quality flags:")
         for flag in quality_flags:

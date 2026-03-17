@@ -7,6 +7,7 @@ import numpy as np
 from scipy import ndimage
 
 from config import PreprocessConfig
+from robustness import validate_spacing_zyx
 
 try:
     import SimpleITK as sitk
@@ -61,6 +62,7 @@ def choose_target_spacing(
 ) -> tuple[float, float, float]:
     """Build output spacing from config while preserving coarse z when requested."""
 
+    validate_spacing_zyx(spacing_zyx)
     z_spacing, _, _ = spacing_zyx
     target_z = z_spacing
 
@@ -212,6 +214,7 @@ def run_preprocessing_pipeline(
     preprocess_config: PreprocessConfig,
 ) -> PreprocessResult:
     target_spacing_zyx = choose_target_spacing(spacing_zyx, preprocess_config)
+    validate_spacing_zyx(target_spacing_zyx)
     resampled_volume_hu = resample_volume_to_spacing(
         volume_hu=volume_hu,
         spacing_zyx=spacing_zyx,

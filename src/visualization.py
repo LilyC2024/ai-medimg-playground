@@ -373,3 +373,55 @@ def save_day5_prediction_overlays(
         saved_files.append(file_path)
 
     return saved_files
+
+
+def save_report_slice_montage(
+    center_slices: np.ndarray,
+    predicted_labels: np.ndarray,
+    reference_labels: np.ndarray,
+    uncertainty: np.ndarray | None,
+    slice_indices: list[int],
+    output_path: str | Path,
+    *,
+    title: str = "Evaluation Montage",
+) -> Path:
+    output_file = Path(output_path).expanduser().resolve()
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    row_count = max(len(slice_indices), 1)
+    column_count = 4 if uncertainty is not None else 3
+    fig, axes = plt.subplots(row_count, column_count, figsize=(3.8 * column_count, 3.1 * row_count))
+    if row_count == 1:
+        axes = np.asarray([axes])
+
+    for row_index, slice_index in enumerate(slice_indices):
+        background = np.clip(center_slices[row_index], 0.0, 1.0)
+        predicted = predicted_labels[row_index]
+        reference = reference_labels[row_index]
+
+        axes[row_index, 0].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[row_index, 0].set_title(f"Input z={slice_index}")
+        axes[row_index, 0].axis("off")
+
+        axes[row_index, 1].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[row_index, 1].imshow(np.ma.masked_where(predicted <= 0, predicted), cmap="viridis", alpha=0.55)
+        axes[row_index, 1].set_title("Prediction")
+        axes[row_index, 1].axis("off")
+
+        axes[row_index, 2].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[row_index, 2].imshow(np.ma.masked_where(reference <= 0, reference), cmap="magma", alpha=0.45)
+        if np.any(predicted > 0):
+            axes[row_index, 2].contour(predicted > 0, levels=[0.5], colors=["#00FF85"], linewidths=0.9)
+        axes[row_index, 2].set_title("Reference + contour")
+        axes[row_index, 2].axis("off")
+
+        if uncertainty is not None:
+            axes[row_index, 3].imshow(uncertainty[row_index], cmap="inferno", vmin=0.0, vmax=1.0)
+            axes[row_index, 3].set_title("Uncertainty")
+            axes[row_index, 3].axis("off")
+
+    fig.suptitle(title, fontsize=12)
+    fig.tight_layout()
+    fig.savefig(output_file, dpi=170)
+    plt.close(fig)
+    return output_file
