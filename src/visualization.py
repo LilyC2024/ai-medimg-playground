@@ -294,3 +294,82 @@ def save_day4_batch_viz(
     fig.tight_layout()
     fig.savefig(output_file, dpi=180)
     plt.close(fig)
+
+
+def save_day5_curves(
+    history: dict[str, list[float] | list[int]],
+    output_path: str | Path,
+) -> None:
+    output_file = Path(output_path).expanduser().resolve()
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    epochs = np.asarray(history["epoch"], dtype=np.int32)
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+
+    axes[0].plot(epochs, history["train_loss"], label="train", color="#264653", linewidth=2)
+    axes[0].plot(epochs, history["eval_loss"], label="eval", color="#E76F51", linewidth=2)
+    axes[0].set_title("Loss")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].grid(alpha=0.25)
+    axes[0].legend()
+
+    axes[1].plot(epochs, history["train_dice"], label="train Dice", color="#2A9D8F", linewidth=2)
+    axes[1].plot(epochs, history["eval_dice"], label="eval Dice", color="#E9C46A", linewidth=2)
+    axes[1].plot(epochs, history["eval_iou"], label="eval IoU", color="#F4A261", linewidth=2)
+    axes[1].set_title("Segmentation Metrics")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Score")
+    axes[1].set_ylim(0.0, 1.0)
+    axes[1].grid(alpha=0.25)
+    axes[1].legend()
+
+    fig.suptitle("Day 5 Lightweight U-Net Training", fontsize=12)
+    fig.tight_layout()
+    fig.savefig(output_file, dpi=180)
+    plt.close(fig)
+
+
+def save_day5_prediction_overlays(
+    center_slices: np.ndarray,
+    predicted_labels: np.ndarray,
+    reference_labels: np.ndarray,
+    output_dir: str | Path,
+    slice_indices: list[int] | None = None,
+) -> list[Path]:
+    output_path = Path(output_dir).expanduser().resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    if slice_indices is None:
+        slice_indices = list(range(int(center_slices.shape[0])))
+
+    saved_files: list[Path] = []
+    for row_index, slice_index in enumerate(slice_indices):
+        background = np.clip(center_slices[row_index], 0.0, 1.0)
+        predicted = predicted_labels[row_index]
+        reference = reference_labels[row_index]
+
+        fig, axes = plt.subplots(1, 3, figsize=(11.5, 4))
+        axes[0].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[0].set_title(f"Input z={slice_index}")
+        axes[0].axis("off")
+
+        axes[1].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[1].imshow(np.ma.masked_where(predicted <= 0, predicted), cmap="viridis", alpha=0.55)
+        axes[1].set_title("DL prediction")
+        axes[1].axis("off")
+
+        axes[2].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[2].imshow(np.ma.masked_where(reference <= 0, reference), cmap="magma", alpha=0.45)
+        if np.any(predicted > 0):
+            axes[2].contour(predicted > 0, levels=[0.5], colors=["#00FF85"], linewidths=1.0)
+        axes[2].set_title("Classical pseudo label + DL contour")
+        axes[2].axis("off")
+
+        fig.tight_layout()
+        file_path = output_path / f"slice_{slice_index:03d}.png"
+        fig.savefig(file_path, dpi=150)
+        plt.close(fig)
+        saved_files.append(file_path)
+
+    return saved_files

@@ -1,0 +1,23 @@
+{
+  "checkpoint": "C:\\AI\\ai-medimg-playground\\saved_models\\best.pt",
+  "prediction_volume_path": "C:\\AI\\ai-medimg-playground\\data_processed\\day5_predictions.npz",
+  "overlay_dir": "C:\\AI\\ai-medimg-playground\\outputs\\day5_overlays",
+  "overlay_count": 29,
+  "slice_count": 29,
+  "metrics": {
+    "dice": 0.27098318934440613,
+    "iou": 0.2239237278699875,
+    "per_class_dice": {
+      "1": 0.014554493129253387,
+      "2": 0.798395037651062,
+      "3": 2.0366599073895486e-08
+    },
+    "per_class_iou": {
+      "1": 0.007330593187361956,
+      "2": 0.6644405722618103,
+      "3": 2.0366599073895486e-08
+    }
+  },
+  "best_eval_dice_from_checkpoint": 0.24560487549751997,
+  "reference_note": "Metrics are computed against Day 3 pseudo labels because no manual GT labels are included."
+}

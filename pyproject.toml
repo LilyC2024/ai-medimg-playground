@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-medimg-playground"
-version = "0.4.0"
-description = "Day 1-4 DICOM ingestion, preprocessing, classical pseudo-labeling, and 2.5D data module."
+version = "0.5.0"
+description = "Day 1-5 DICOM ingestion, preprocessing, pseudo-labeling, 2.5D data module, and lightweight U-Net CPU training."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

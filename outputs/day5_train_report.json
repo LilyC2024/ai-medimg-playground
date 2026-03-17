@@ -1,0 +1,81 @@
+{
+  "index_path": "C:\\AI\\ai-medimg-playground\\data_processed\\index.csv",
+  "best_checkpoint_path": "C:\\AI\\ai-medimg-playground\\saved_models\\best.pt",
+  "curves_path": "C:\\AI\\ai-medimg-playground\\outputs\\day5_curves.png",
+  "seed": 13,
+  "epochs": 6,
+  "batch_size": 4,
+  "learning_rate": 0.001,
+  "resize": {
+    "height": 256,
+    "width": 256
+  },
+  "device": "cpu",
+  "eval_split": "train-fallback",
+  "train_samples": 29,
+  "eval_samples": 29,
+  "best_eval_dice": 0.24560487549751997,
+  "history": {
+    "epoch": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "train_loss": [
+      1.2119474411010742,
+      1.0925904471298744,
+      1.0317324769907985,
+      0.9901313946164888,
+      0.9455551361215526,
+      0.9153104157283388
+    ],
+    "train_dice": [
+      0.16373802023008466,
+      0.2233346300199628,
+      0.2215419951826334,
+      0.23997126892209053,
+      0.25077769719064236,
+      0.2675252594053745
+    ],
+    "train_iou": [
+      0.11310217436403036,
+      0.17464290652424097,
+      0.17707979399710894,
+      0.19331564474850893,
+      0.20207348838448524,
+      0.22746971435844898
+    ],
+    "eval_loss": [
+      1.1855934981642098,
+      1.1230619734731213,
+      1.0465155141106968,
+      0.9714726332960457,
+      0.885035987558036,
+      0.7914502661803673
+    ],
+    "eval_dice": [
+      0.20904462994182182,
+      0.21548005123622715,
+      0.20993761904537678,
+      0.24560487549751997,
+      0.23506347090005875,
+      0.23488971078768373
+    ],
+    "eval_iou": [
+      0.20869059861835382,
+      0.19539135323429946,
+      0.1675790068693459,
+      0.20944078033789992,
+      0.19587517017498612,
+      0.19874756131321192
+    ]
+  },
+  "train_seconds": 40.37416099999973,
+  "notes": [
+    "Pseudo labels from Day 3 are used as supervision targets.",
+    "Current repository has one patient/series, so evaluation falls back to the train split."
+  ]
+}
