@@ -240,3 +240,57 @@ def save_day3_slice_overlays(
         saved_files.append(file_path)
 
     return saved_files
+
+
+def _to_numpy(array_like: object) -> np.ndarray:
+    if hasattr(array_like, "detach"):
+        return array_like.detach().cpu().numpy()
+    return np.asarray(array_like)
+
+
+def save_day4_batch_viz(
+    batch: dict[str, object],
+    output_path: str | Path,
+    title: str = "Day 4 2.5D Batch Sanity Check",
+    max_items: int = 4,
+) -> None:
+    output_file = Path(output_path).expanduser().resolve()
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    images = _to_numpy(batch["image"]).astype(np.float32)
+    masks = _to_numpy(batch["mask"]).astype(np.int64)
+    slice_indices = list(_to_numpy(batch["slice_index"]).tolist())
+
+    if images.ndim != 4:
+        raise ValueError(f"Expected batch['image'] to have shape (B, 3, H, W), got {images.shape}.")
+    if masks.ndim != 3:
+        raise ValueError(f"Expected batch['mask'] to have shape (B, H, W), got {masks.shape}.")
+
+    sample_count = min(int(images.shape[0]), int(max_items))
+    fig, axes = plt.subplots(sample_count, 4, figsize=(12, 3.2 * sample_count))
+    if sample_count == 1:
+        axes = np.asarray([axes])
+
+    channel_titles = ("z-1", "z", "z+1")
+    for row_index in range(sample_count):
+        for channel_index, channel_title in enumerate(channel_titles):
+            axis = axes[row_index, channel_index]
+            axis.imshow(images[row_index, channel_index], cmap="gray", vmin=0.0, vmax=1.0)
+            axis.set_title(channel_title, fontsize=10)
+            axis.axis("off")
+
+        mask_axis = axes[row_index, 3]
+        mask_axis.imshow(images[row_index, 1], cmap="gray", vmin=0.0, vmax=1.0)
+        mask_axis.imshow(
+            np.ma.masked_where(masks[row_index] <= 0, masks[row_index]),
+            cmap="viridis",
+            alpha=0.55,
+            interpolation="nearest",
+        )
+        mask_axis.set_title(f"mask @ z={slice_indices[row_index]}", fontsize=10)
+        mask_axis.axis("off")
+
+    fig.suptitle(title, fontsize=12)
+    fig.tight_layout()
+    fig.savefig(output_file, dpi=180)
+    plt.close(fig)

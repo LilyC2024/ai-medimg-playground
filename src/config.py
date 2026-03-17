@@ -55,10 +55,10 @@ class SegmentationConfig:
     """Tunable parameters for Day 3 classical segmentation baseline."""
 
     # Bone is typically high HU. Higher threshold gives cleaner but thinner skull masks.
-    bone_threshold_hu: float = 800.0
+    bone_threshold_hu: float = -100.0
     # Morphology cleanup for bone mask.
-    bone_opening_iterations: int = 20
-    bone_closing_iterations: int = 20
+    bone_opening_iterations: int = 1
+    bone_closing_iterations: int = 1
     # Remove tiny disconnected islands below this size (voxels).
     bone_min_component_voxels: int = 32
     # Keep only largest connected component to enforce anatomical plausibility.
@@ -71,10 +71,10 @@ class SegmentationConfig:
     brain_window_norm_min: float = 0.05
     brain_window_norm_max: float = 0.95
     # Additional HU gate to suppress air/non-patient regions.
-    brain_head_threshold_hu: float = -100.0
+    brain_head_threshold_hu: float = -10.0
     # Morphology cleanup for brain mask.
-    brain_opening_iterations: int = 10
-    brain_closing_iterations: int = 10
+    brain_opening_iterations: int = 0
+    brain_closing_iterations: int = 2
     # Fill interior holes after cleanup.
     brain_fill_holes: bool = True
     # Remove tiny disconnected islands below this size (voxels).

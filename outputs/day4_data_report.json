@@ -1,0 +1,39 @@
+{
+  "series_dir": "C:\\AI\\ai-medimg-playground\\data\\dicom_series_01",
+  "processed_volume_path": "C:\\AI\\ai-medimg-playground\\data_processed\\volume.nii.gz",
+  "pseudo_label_volume_path": "C:\\AI\\ai-medimg-playground\\data_processed\\pseudo_labels\\pseudo_labels_3d.npz",
+  "index_csv_path": "C:\\AI\\ai-medimg-playground\\data_processed\\index.csv",
+  "batch_visualization_path": "C:\\AI\\ai-medimg-playground\\outputs\\day4_batch_viz.png",
+  "seed": 13,
+  "case_shape_zyx": [
+    29,
+    207,
+    171
+  ],
+  "case_spacing_zyx_mm": [
+    5.0,
+    1.0,
+    1.0
+  ],
+  "summary": {
+    "total_rows": 29,
+    "patient_count": 1,
+    "series_count": 1,
+    "split_summary": {
+      "train": {
+        "slice_count": 29,
+        "patient_count": 1,
+        "series_count": 1
+      }
+    }
+  },
+  "group_split_map": {
+    "NOID|1.3.6.1.4.1.5962.99.1.1761388472.1291962045.1616669124536.2599.0": "train"
+  },
+  "leakage_summary": "Single patient/series detected; all slices assigned to train to avoid leakage.",
+  "train_transforms": {
+    "flip": true,
+    "rotation_degrees": 7.5,
+    "intensity_jitter": true
+  }
+}

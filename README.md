@@ -1,9 +1,10 @@
 # AI Medical Imaging Playground
 
-Reference pipeline for CT head volumes across three stages:
+Reference pipeline for CT head volumes across four stages:
 - Day 1: robust DICOM ingestion and HU validation
 - Day 2: preprocessing (resampling, ROI crop, normalization, cache)
 - Day 3: classical segmentation baseline (bone + brain-ish pseudo labels)
+- Day 4: 2.5D dataset builder, index CSV, and training-ready dataloaders
 
 ## Quick Start
 
@@ -41,6 +42,12 @@ Day 3 (classical masks, pseudo labels, overlay review):
 .\.venv\Scripts\python.exe scripts\classical_baseline.py
 ```
 
+Day 4 (2.5D index, dataset module, and batch sanity check):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\make_index.py
+```
+
 Run all tests:
 
 ```powershell
@@ -65,6 +72,13 @@ Day 3:
 - `outputs/overlays/slice_*.png`
 - `outputs/day3_classical_report.json`
 
+Day 4:
+- `src/data/ct25d_dataset.py`
+- `scripts/make_index.py`
+- `data_processed/index.csv`
+- `outputs/day4_batch_viz.png`
+- `outputs/day4_data_report.json`
+
 ## Pipeline Summary
 
 ```text
@@ -75,6 +89,9 @@ Raw DICOM series
   -> classical segmentation (bone, brain-ish masks)
   -> postprocessing (morphology, connected components, hole filling)
   -> pseudo labels + visual overlays + non-GT quality metrics
+  -> 2.5D stack builder ((z-1, z, z+1) predicts z)
+  -> slice-level index CSV + group-safe split labels
+  -> PyTorch Dataset/DataLoader for training-time ingestion
 ```
 
 ## Key Tuning Parameters
@@ -91,11 +108,17 @@ Classical segmentation (`scripts/classical_baseline.py`):
 - cleanup: `--brain-fill-holes`, `--brain-min-voxels`, `--brain-keep-largest`, `--bone-keep-largest`
 - overlay export: `--overlay-max-slices`, `--overlay-min-representative`
 
+2.5D data module (`scripts/make_index.py`):
+- splits: `--train-ratio`, `--val-ratio`, `--test-ratio`, `--seed`
+- loader preview: `--batch-size`, `--num-workers`
+- CPU-friendly augmentations: `--rotation-deg`, `--disable-intensity-jitter`
+
 ## Known Limitations
 
 - No manual ground-truth labels are included; Day 3 outputs are pseudo labels.
 - Classical thresholds may fail on severe artifacts (beam hardening, motion, metal).
 - Thick-slice scans can reduce 3D continuity and segmentation stability.
+- The current repository contains one CT series, so leakage-safe Day 4 splitting falls back to `train` only until more patient/series groups are added.
 
 ## Repository Layout
 
@@ -104,14 +127,17 @@ scripts/
   inspect_series.py
   preprocess_series.py
   classical_baseline.py
+  make_index.py
 src/
   dicom_loader.py
   preprocessing.py
   baselines/classical_seg.py
+  data/ct25d_dataset.py
   visualization.py
   config.py
 tests/
   test_loader.py
   test_preprocessing.py
   test_classical_seg.py
+  test_ct25d_dataset.py
 ```
