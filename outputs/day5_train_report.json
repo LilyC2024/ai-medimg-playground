@@ -87,7 +87,7 @@
       0.19624460954219103
     ]
   },
-  "train_seconds": 51.994658199999776,
+  "train_seconds": 58.05602519999957,
   "notes": [
     "Pseudo labels from Day 3 are used as supervision targets.",
     "Current repository has one patient/series, so evaluation falls back to the train split."
