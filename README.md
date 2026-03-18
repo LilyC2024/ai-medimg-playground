@@ -240,13 +240,13 @@ The fuller narrative for this pass lives in [docs/limitation_improvements.md](C:
 
 ## Known Limitations
 
-- No manual ground-truth labels are included; Day 3 outputs are pseudo labels.
-- Classical thresholds are now partially mitigated by adaptive brain-mask candidate selection, but severe artifacts (beam hardening, motion, metal) can still break the heuristics.
-- Thick-slice scans can reduce 3D continuity and segmentation stability.
-- The repository still contains one CT series; Day 4 now uses buffered intra-series val/test holdouts, which is more honest than pure train fallback but still not patient-level generalization.
-- Day 5 supervision still uses Day 3 pseudo labels, so the reported Dice/IoU values validate the learning pipeline, not real clinical accuracy. The pseudo labels are stronger after the limitation-improvement pass, but they are still not manual ground truth.
-- Day 6/7 uncertainty is now temperature-scaled on buffered holdout pseudo labels, which improved ECE, but it is still not calibrated clinical failure probability.
-- Day 7 deployment is still CPU-only and validated on one sample series; broader operational testing still needs more data and real annotations.
+- This repository currently relies on Day 3 pseudo labels rather than manually annotated ground truth, so the reported metrics are best read as pipeline-validation signals rather than clinical performance claims.
+- The adaptive Day 3 labeling step is more robust than the original fixed-threshold baseline, though scans with pronounced artifacts such as beam hardening, motion, or metal can still benefit from additional safeguards and manual review.
+- The sample study uses relatively thick slices, which can limit through-plane continuity and make some 3D structures harder to segment consistently.
+- The dataset still contains one CT series. Buffered intra-series validation and test holdouts make the internal evaluation more careful, but broader patient-level generalization will benefit from additional studies.
+- Day 5 training is stronger after the pseudo-label and class-balancing improvements, but the supervision signal remains derived rather than expert-annotated.
+- Day 6/7 uncertainty is now temperature-scaled and more useful for prioritizing review, but it should still be treated as a QA aid rather than a calibrated clinical confidence estimate.
+- Day 7 deployment provides a stable CPU-only reference workflow on the sample case; wider operational confidence will come from testing across more scans and annotation-backed benchmarks.
 
 ## Repository Layout
 
