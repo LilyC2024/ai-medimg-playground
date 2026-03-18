@@ -1,27 +1,28 @@
 # AI Medical Imaging Playground
 
-Reference pipeline for CT head volumes across six stages:
+Reference pipeline for CT head volumes across seven stages:
 - Day 1: robust DICOM ingestion and HU validation
 - Day 2: preprocessing (resampling, ROI crop, normalization, cache)
 - Day 3: classical segmentation baseline (bone + brain-ish pseudo labels)
 - Day 4: 2.5D dataset builder, index CSV, and training-ready dataloaders
 - Day 5: lightweight 2.5D U-Net training, inference, and overlay review
 - Day 6: robustness checks, postprocessing, uncertainty proxy, and standardized reporting
+- Day 7: deployable ONNX export, CPU inference CLI, optional FastAPI, and Docker packaging
 
 ## Quick Start
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+./.venv/Scripts/Activate.ps1
 python -m pip install -r requirements.txt
 ```
 
 Optional path overrides:
 
 ```powershell
-$env:DICOM_SERIES_DIR="C:\path\to\dicom_series"
-$env:DICOM_OUTPUT_DIR="C:\path\to\outputs"
-$env:DICOM_PROCESSED_DIR="C:\path\to\data_processed"
+$env:DICOM_SERIES_DIR="C:/path/to/dicom_series"
+$env:DICOM_OUTPUT_DIR="C:/path/to/outputs"
+$env:DICOM_PROCESSED_DIR="C:/path/to/data_processed"
 ```
 
 ## Main Commands
@@ -29,46 +30,83 @@ $env:DICOM_PROCESSED_DIR="C:\path\to\data_processed"
 Day 1 (inspection and diagnostics):
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\inspect_series.py
+./.venv/Scripts/python.exe scripts/inspect_series.py
 ```
 
 Day 2 (preprocessing and cache generation):
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\preprocess_series.py
+./.venv/Scripts/python.exe scripts/preprocess_series.py
 ```
 
 Day 3 (classical masks, pseudo labels, overlay review):
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\classical_baseline.py
+./.venv/Scripts/python.exe scripts/classical_baseline.py
 ```
 
 Day 4 (2.5D index, dataset module, and batch sanity check):
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\make_index.py
+./.venv/Scripts/python.exe scripts/make_index.py
 ```
 
 Day 5 (lightweight U-Net training on CPU + full-series inference):
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\train.py
-.\.venv\Scripts\python.exe scripts\infer.py
+./.venv/Scripts/python.exe scripts/train.py
+./.venv/Scripts/python.exe scripts/infer.py
 ```
 
 Day 6 (reporting and automated checks):
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\report.py
-.\.venv\Scripts\python.exe scripts\check.py
+./.venv/Scripts/python.exe scripts/report.py
+./.venv/Scripts/python.exe scripts/check.py
+```
+
+Day 7 (deployable CPU inference from raw DICOM):
+
+```powershell
+./.venv/Scripts/python.exe deploy/cli_infer.py `
+  --series-dir data/dicom_series_01 `
+  --checkpoint saved_models/best.pt `
+  --onnx-path onnx/model.onnx `
+  --output-dir outputs/day7_infer_demo `
+  --threads 1 `
+  --batch-size 1 `
+  --mask-format npz `
+  --force-export
+```
+
+Optional Day 7 variations:
+
+```powershell
+./.venv/Scripts/python.exe deploy/cli_infer.py --mask-format nii.gz --output-formats mask
+python -m uvicorn deploy.app:app --host 0.0.0.0 --port 8000
+docker build -t ai-medimg-day7 .
+docker run --rm -p 8000:8000 ai-medimg-day7
 ```
 
 Run all tests:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+./.venv/Scripts/python.exe -m unittest discover -s tests -v
 ```
+
+## Day 7 Deployment Contract
+
+Input contract:
+- `deploy/cli_infer.py` expects a folder containing one axial CT DICOM series.
+- The checkpoint must match the exported ONNX graph (`saved_models/best.pt` -> `onnx/model.onnx`).
+- The FastAPI `/predict` endpoint expects a ZIP file whose contents are the DICOM slices for one series.
+
+Output contract:
+- `prediction_mask.npz` stores `predicted_labels` as a `(Z, Y, X)` uint8 volume plus `spacing_zyx`.
+- `prediction_mask.nii.gz` is available with `--mask-format nii.gz`.
+- `overlays/` contains one PNG per slice with grayscale background, predicted mask overlay, and uncertainty heatmap.
+- `day7_infer_report.json` records runtime settings, ONNX validation results, class voxel counts, and uncertainty summary.
+- `day7_preprocess_report.json` records raw-vs-processed shape, spacing, crop box, and preprocessing parameters.
 
 ## Outputs
 
@@ -113,6 +151,23 @@ Day 6:
 - `outputs/report.md`
 - `outputs/report_montage.png`
 
+Day 7:
+- `deploy/cli_infer.py`
+- `deploy/inference_runtime.py`
+- `deploy/app.py`
+- `onnx/model.onnx`
+- `outputs/day7_infer_demo/`
+- `Dockerfile`
+
+## Verified Day 7 Demo Results
+
+Repository demo run on March 18, 2026:
+- ONNX export written to `onnx/model.onnx`.
+- ONNX vs PyTorch validation on a 4-slice sample batch passed with `max_abs_diff=1.907e-06` and `max_prob_diff=2.980e-07`.
+- The CLI produced `29` overlays plus `prediction_mask.npz` under `outputs/day7_infer_demo/`.
+- Two back-to-back CPU CLI runs produced the same SHA-256 hash for `prediction_mask.npz`: `4A49D9D24F96D1230DEEA5AC0F86CC3DC9A9E72C0C79BFC3DC4C42FC365D1BE3`.
+- Against the Day 3 pseudo labels, the deployment path measured Dice `0.2745` and IoU `0.2255` on the sample series.
+
 ## Pipeline Summary
 
 ```text
@@ -129,6 +184,7 @@ Raw DICOM series
   -> lightweight 2.5D U-Net training on pseudo labels
   -> full-series inference + overlay comparison against classical baseline
   -> uncertainty proxy + postprocessing + standardized evaluation report
+  -> ONNX export + CPU runtime CLI + optional API/container deployment
 ```
 
 ## Key Tuning Parameters
@@ -160,8 +216,11 @@ Inference (`scripts/infer.py`):
 - paths: `--index-path`, `--processed-dir`, `--output-dir`
 - robustness: `--uncertainty-method`, `--disable-postprocess`, `--brain-min-voxels`, `--bone-min-voxels`
 
-Reporting (`scripts/report.py`):
-- paths: `--output-dir`, `--processed-dir`, `--report-path`
+Deployment (`deploy/cli_infer.py`):
+- artifact control: `--onnx-path`, `--force-export`, `--skip-validation`
+- runtime: `--threads`, `--batch-size`, `--mask-format`, `--output-formats`
+- preprocessing: `--xy-spacing-mm`, `--target-z-mm`, `--head-threshold-hu`, `--crop-margin-mm`
+- postprocessing: `--disable-postprocess`
 
 ## Known Limitations
 
@@ -171,6 +230,7 @@ Reporting (`scripts/report.py`):
 - The current repository contains one CT series, so leakage-safe Day 4 splitting falls back to `train` only until more patient/series groups are added.
 - Day 5 supervision still uses Day 3 pseudo labels, so the reported Dice/IoU values validate the learning pipeline, not real clinical accuracy.
 - Day 6 uncertainty scores are heuristic review aids, not calibrated probabilities of failure.
+- Day 7 deployment is CPU-only and validated on one sample series; broader operational testing still needs more data and real annotations.
 
 ## Repository Layout
 
@@ -184,6 +244,10 @@ scripts/
   infer.py
   report.py
   check.py
+deploy/
+  inference_runtime.py
+  cli_infer.py
+  app.py
 src/
   dicom_loader.py
   preprocessing.py
@@ -199,5 +263,5 @@ tests/
   test_classical_seg.py
   test_ct25d_dataset.py
   test_unet_metrics.py
-  test_robustness.py
+Dockerfile
 ```

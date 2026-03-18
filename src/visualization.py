@@ -375,6 +375,46 @@ def save_day5_prediction_overlays(
     return saved_files
 
 
+def save_day7_prediction_overlays(
+    center_slices: np.ndarray,
+    predicted_labels: np.ndarray,
+    output_dir: str | Path,
+    uncertainty: np.ndarray | None = None,
+) -> list[Path]:
+    output_path = Path(output_dir).expanduser().resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    saved_files: list[Path] = []
+    for slice_index in range(int(center_slices.shape[0])):
+        background = np.clip(center_slices[slice_index], 0.0, 1.0)
+        prediction = predicted_labels[slice_index]
+        column_count = 3 if uncertainty is not None else 2
+        fig, axes = plt.subplots(1, column_count, figsize=(4.0 * column_count, 4.2))
+        axes = np.atleast_1d(axes)
+
+        axes[0].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[0].set_title(f"Input z={slice_index}")
+        axes[0].axis("off")
+
+        axes[1].imshow(background, cmap="gray", vmin=0.0, vmax=1.0)
+        axes[1].imshow(np.ma.masked_where(prediction <= 0, prediction), cmap="viridis", alpha=0.55)
+        axes[1].set_title("ONNX prediction")
+        axes[1].axis("off")
+
+        if uncertainty is not None:
+            axes[2].imshow(uncertainty[slice_index], cmap="inferno", vmin=0.0, vmax=1.0)
+            axes[2].set_title("Uncertainty")
+            axes[2].axis("off")
+
+        fig.tight_layout()
+        file_path = output_path / f"slice_{slice_index:03d}.png"
+        fig.savefig(file_path, dpi=150)
+        plt.close(fig)
+        saved_files.append(file_path)
+
+    return saved_files
+
+
 def save_report_slice_montage(
     center_slices: np.ndarray,
     predicted_labels: np.ndarray,
