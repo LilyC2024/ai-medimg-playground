@@ -21,6 +21,7 @@ from data.ct25d_dataset import (  # noqa: E402
     RandomIntensityJitter25D,
     RandomRotate25D,
     assign_group_splits,
+    assign_single_case_slice_splits,
     build_25d_stack,
 )
 from preprocessing import save_npz_volume  # noqa: E402
@@ -58,6 +59,16 @@ class TestCT25DDataset(unittest.TestCase):
         self.assertGreaterEqual(sum(split == "train" for split in assignments.values()), 1)
         self.assertGreaterEqual(sum(split == "val" for split in assignments.values()), 1)
         self.assertGreaterEqual(sum(split == "test" for split in assignments.values()), 1)
+
+    def test_single_case_slice_splits_create_holdouts_and_buffer(self) -> None:
+        assignments = assign_single_case_slice_splits(depth=29, val_ratio=0.15, test_ratio=0.15, context_radius=1)
+
+        self.assertEqual(len(assignments), 29)
+        self.assertIn("train", assignments)
+        self.assertIn("val", assignments)
+        self.assertIn("test", assignments)
+        self.assertIn("buffer", assignments)
+        self.assertGreater(sum(split == "train" for split in assignments), 0)
 
     def test_dataset_transforms_are_deterministic_when_seeded(self) -> None:
         volume = np.linspace(0.0, 1.0, num=4 * 6 * 6, dtype=np.float32).reshape(4, 6, 6)

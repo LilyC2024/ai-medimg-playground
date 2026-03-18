@@ -189,14 +189,71 @@ def assign_group_splits(
     return assignments
 
 
+def assign_single_case_slice_splits(
+    depth: int,
+    *,
+    val_ratio: float = 0.15,
+    test_ratio: float = 0.15,
+    context_radius: int = 1,
+) -> list[str]:
+    if depth <= 0:
+        raise ValueError("depth must be positive.")
+
+    assignments = ["train"] * int(depth)
+    requested_val = int(round(depth * max(val_ratio, 0.0))) if val_ratio > 0 else 0
+    requested_test = int(round(depth * max(test_ratio, 0.0))) if test_ratio > 0 else 0
+    val_count = max(requested_val, 1 if val_ratio > 0 and depth >= 6 else 0)
+    test_count = max(requested_test, 1 if test_ratio > 0 and depth >= 8 else 0)
+
+    def _reserve(center_fraction: float, split_name: str, count: int) -> None:
+        if count <= 0:
+            return
+        center = int(round((depth - 1) * center_fraction))
+        start = max(0, center - count // 2)
+        end = min(depth, start + count)
+        start = max(0, end - count)
+
+        # Slide the block until it no longer collides with a holdout block.
+        while any(assignments[idx] != "train" for idx in range(start, end)) and end < depth:
+            start += 1
+            end += 1
+        while any(assignments[idx] != "train" for idx in range(start, end)) and start > 0:
+            start -= 1
+            end -= 1
+
+        for idx in range(start, end):
+            assignments[idx] = split_name
+
+        buffer_start = max(0, start - int(context_radius))
+        buffer_end = min(depth, end + int(context_radius))
+        for idx in range(buffer_start, buffer_end):
+            if assignments[idx] == "train":
+                assignments[idx] = "buffer"
+
+    _reserve(0.35, "val", val_count)
+    _reserve(0.70, "test", test_count)
+
+    if not any(split == "train" for split in assignments):
+        for idx, split in enumerate(assignments):
+            if split == "buffer":
+                assignments[idx] = "train"
+                break
+    return assignments
+
+
+
 def build_case_index(
     cases: list[CT25DCase],
     group_split_map: dict[str, str],
+    slice_split_overrides: dict[str, list[str]] | None = None,
 ) -> pd.DataFrame:
     records: list[dict[str, Any]] = []
+    slice_split_overrides = slice_split_overrides or {}
     for case in cases:
-        split_name = group_split_map.get(case.split_group_id, "train")
+        case_slice_splits = slice_split_overrides.get(case.split_group_id)
+        default_split_name = group_split_map.get(case.split_group_id, "train")
         for slice_index in range(case.volume_shape_zyx[0]):
+            split_name = case_slice_splits[slice_index] if case_slice_splits is not None else default_split_name
             prev_index, center_index, next_index = clamp_stack_indices(
                 center_index=slice_index,
                 depth=case.volume_shape_zyx[0],

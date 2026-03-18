@@ -98,6 +98,7 @@ def main() -> int:
     per_class_dice = metrics.get("per_class_dice", {}) if isinstance(metrics, dict) else {}
     uncertainty_info = infer_report.get("uncertainty", {})
     uncertainty_summary = uncertainty_info.get("summary", {}) if isinstance(uncertainty_info, dict) else {}
+    calibration = infer_report.get("calibration", {}) if isinstance(infer_report.get("calibration", {}), dict) else {}
 
     lines = [
         "# Day 6 Evaluation Report",
@@ -120,6 +121,8 @@ def main() -> int:
         _metric_row("Best Eval Dice", f"{float(train_report.get('best_eval_dice', 0.0)):.4f}"),
         _metric_row("Uncertainty Mean", f"{float(uncertainty_summary.get('mean', 0.0)):.4f}"),
         _metric_row("Uncertainty P95", f"{float(uncertainty_summary.get('p95', 0.0)):.4f}"),
+        _metric_row("Temperature", f"{float(calibration.get('temperature', 1.0)):.4f}"),
+        _metric_row("ECE After", f"{float(calibration.get('ece_after', 0.0)):.4f}"),
         "",
         "## Best/Worst Slices",
         "",
@@ -153,7 +156,7 @@ def main() -> int:
     for limitation in (
         "Metrics are against Day 3 pseudo labels, not manual clinical ground truth.",
         "Single-series data means train/validation separation remains limited.",
-        "Uncertainty is a proxy from entropy/TTA and is not calibrated risk estimation.",
+        "Uncertainty is temperature-scaled on pseudo-label holdout slices, but it is still not clinical risk calibration.",
         "Thick slices, metal, motion, and missing DICOM metadata can still degrade performance.",
     ):
         lines.append(f"- {limitation}")

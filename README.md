@@ -161,12 +161,12 @@ Day 7:
 
 ## Verified Day 7 Demo Results
 
-Repository demo run on March 18, 2026:
+Repository demo run on March 18, 2026 after the limitation-improvement pass:
 - ONNX export written to `onnx/model.onnx`.
-- ONNX vs PyTorch validation on a 4-slice sample batch passed with `max_abs_diff=1.907e-06` and `max_prob_diff=2.980e-07`.
+- ONNX vs PyTorch validation on a 4-slice sample batch passed with `max_abs_diff=3.624e-05` and `max_prob_diff=6.378e-06`.
 - The CLI produced `29` overlays plus `prediction_mask.npz` under `outputs/day7_infer_demo/`.
-- Two back-to-back CPU CLI runs produced the same SHA-256 hash for `prediction_mask.npz`: `4A49D9D24F96D1230DEEA5AC0F86CC3DC9A9E72C0C79BFC3DC4C42FC365D1BE3`.
-- Against the Day 3 pseudo labels, the deployment path measured Dice `0.2745` and IoU `0.2255` on the sample series.
+- Two back-to-back CPU CLI runs produced the same SHA-256 hash for `prediction_mask.npz`: `249012A93CCF75E841E57CF6975067443A1A907B939FBDF5B9CBD34B908124A2`.
+- Against the refreshed Day 3 pseudo labels, the deployment path measured Dice `0.3331` and IoU `0.2314` on the sample series.
 
 ## Pipeline Summary
 
@@ -222,15 +222,31 @@ Deployment (`deploy/cli_infer.py`):
 - preprocessing: `--xy-spacing-mm`, `--target-z-mm`, `--head-threshold-hu`, `--crop-margin-mm`
 - postprocessing: `--disable-postprocess`
 
+## Limitation Improvements
+
+A dedicated limitation-reduction pass was run after the Day 7 deployment milestone. The goal was to improve the weakest parts of the pipeline without pretending that unavailable data or clinical labels could be invented.
+
+Applied methods and observed improvements:
+- Threshold brittleness in the Day 3 brain-ish mask was reduced with an adaptive threshold sweep in [classical_seg.py](C:/AI/ai-medimg-playground/src/baselines/classical_seg.py). The selector now evaluates 60 brain-window/head-threshold candidates and records the top-ranked settings. On the sample CT, brain-mask voxel count increased from `1,476` to `10,731`, and slice coverage increased from `12/29` to `25/29`.
+- Single-series evaluation leakage was partially reduced with buffered intra-series holdout bands in [ct25d_dataset.py](C:/AI/ai-medimg-playground/src/data/ct25d_dataset.py) and [make_index.py](C:/AI/ai-medimg-playground/scripts/make_index.py). The index moved from `29` train slices only to `17 train / 4 val / 4 test / 4 buffer`, and Day 5 no longer needs `train-fallback` evaluation.
+- Pseudo-label imbalance was addressed with class-balanced loss weighting in [unet_small.py](C:/AI/ai-medimg-playground/src/models/unet_small.py) and [train.py](C:/AI/ai-medimg-playground/scripts/train.py). On the refreshed holdout split, best eval Dice increased from `0.2456` to `0.3302`.
+- Uncertainty calibration was improved with temperature scaling in [calibration.py](C:/AI/ai-medimg-playground/src/calibration.py), then propagated through [train.py](C:/AI/ai-medimg-playground/scripts/train.py), [infer.py](C:/AI/ai-medimg-playground/scripts/infer.py), and [inference_runtime.py](C:/AI/ai-medimg-playground/deploy/inference_runtime.py). Expected calibration error on the holdout split dropped from `0.4526` to `0.1588`.
+- Deployment consistency was refreshed by re-exporting ONNX from the improved checkpoint and revalidating the CPU CLI. Day 7 deployment Dice against the refreshed pseudo labels increased from `0.2745` to `0.3331`, and repeated CLI runs remained deterministic with matching SHA-256 hashes.
+
+Comparison caveat:
+- The Day 3 pseudo labels are now broader and more anatomically plausible than before, so some before/after segmentation metrics are not perfectly apples-to-apples. Where possible, the comparison above emphasizes methodology improvements, holdout evaluation quality, calibration, and the refreshed deployment run.
+
+The fuller narrative for this pass lives in [docs/limitation_improvements.md](C:/AI/ai-medimg-playground/docs/limitation_improvements.md) and [limitation_improvements.md](C:/AI/ai-medimg-playground/text%20summary/limitation_improvements.md).
+
 ## Known Limitations
 
 - No manual ground-truth labels are included; Day 3 outputs are pseudo labels.
-- Classical thresholds may fail on severe artifacts (beam hardening, motion, metal).
+- Classical thresholds are now partially mitigated by adaptive brain-mask candidate selection, but severe artifacts (beam hardening, motion, metal) can still break the heuristics.
 - Thick-slice scans can reduce 3D continuity and segmentation stability.
-- The current repository contains one CT series, so leakage-safe Day 4 splitting falls back to `train` only until more patient/series groups are added.
-- Day 5 supervision still uses Day 3 pseudo labels, so the reported Dice/IoU values validate the learning pipeline, not real clinical accuracy.
-- Day 6 uncertainty scores are heuristic review aids, not calibrated probabilities of failure.
-- Day 7 deployment is CPU-only and validated on one sample series; broader operational testing still needs more data and real annotations.
+- The repository still contains one CT series; Day 4 now uses buffered intra-series val/test holdouts, which is more honest than pure train fallback but still not patient-level generalization.
+- Day 5 supervision still uses Day 3 pseudo labels, so the reported Dice/IoU values validate the learning pipeline, not real clinical accuracy. The pseudo labels are stronger after the limitation-improvement pass, but they are still not manual ground truth.
+- Day 6/7 uncertainty is now temperature-scaled on buffered holdout pseudo labels, which improved ECE, but it is still not calibrated clinical failure probability.
+- Day 7 deployment is still CPU-only and validated on one sample series; broader operational testing still needs more data and real annotations.
 
 ## Repository Layout
 

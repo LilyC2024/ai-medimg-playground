@@ -24,6 +24,7 @@ if str(SRC_DIR) not in sys.path:
 from config import PreprocessConfig  # noqa: E402
 from data.ct25d_dataset import build_25d_stack  # noqa: E402
 from dicom_loader import load_dicom_series  # noqa: E402
+from calibration import apply_temperature  # noqa: E402
 from models.unet_small import UNetSmall, compute_segmentation_metrics  # noqa: E402
 from preprocessing import run_preprocessing_pipeline, save_nifti_volume  # noqa: E402
 from robustness import (  # noqa: E402
@@ -151,6 +152,10 @@ def _resize_stack_batch(batch: np.ndarray, height: int, width: int) -> np.ndarra
     return resized.numpy().astype(np.float32, copy=False)
 
 
+def _apply_temperature_numpy(logits: np.ndarray, temperature: float) -> np.ndarray:
+    return logits.astype(np.float32, copy=False) / max(float(temperature), 1e-3)
+
+
 def _softmax_numpy(logits: np.ndarray) -> np.ndarray:
     logits = logits.astype(np.float32, copy=False)
     logits = logits - logits.max(axis=1, keepdims=True)
@@ -164,14 +169,15 @@ def validate_onnx_equivalence(
     sample_batch: np.ndarray,
     *,
     num_threads: int = 1,
+    temperature: float = 1.0,
 ) -> dict[str, Any]:
     checkpoint = load_checkpoint(checkpoint_path)
     model = build_model_from_checkpoint(checkpoint)
     session = create_onnx_session(onnx_path, num_threads=num_threads)
 
     with torch.no_grad():
-        torch_logits = model(torch.from_numpy(sample_batch)).cpu().numpy()
-    onnx_logits = session.run(["logits"], {"input": sample_batch.astype(np.float32, copy=False)})[0]
+        torch_logits = apply_temperature(model(torch.from_numpy(sample_batch)), temperature).cpu().numpy()
+    onnx_logits = _apply_temperature_numpy(session.run(["logits"], {"input": sample_batch.astype(np.float32, copy=False)})[0], temperature)
 
     diff = np.abs(torch_logits - onnx_logits)
     probability_diff = np.abs(_softmax_numpy(torch_logits) - _softmax_numpy(onnx_logits))
@@ -206,6 +212,7 @@ def run_onnx_segmentation(
     model_width: int,
     batch_size: int = 1,
     original_hw: tuple[int, int],
+    temperature: float = 1.0,
 ) -> np.ndarray:
     if batch_size <= 0:
         raise ValueError("batch_size must be positive.")
@@ -214,7 +221,7 @@ def run_onnx_segmentation(
     for start in range(0, int(stack_volume.shape[0]), int(batch_size)):
         batch = stack_volume[start : start + batch_size]
         resized = _resize_stack_batch(batch, model_height, model_width)
-        logits = session.run(["logits"], {"input": resized})[0]
+        logits = _apply_temperature_numpy(session.run(["logits"], {"input": resized})[0], temperature)
         probabilities = _softmax_numpy(logits)
         if tuple(probabilities.shape[-2:]) != tuple(original_hw):
             resized_probabilities = F.interpolate(
@@ -310,6 +317,7 @@ def run_deployment_inference(
     checkpoint = load_checkpoint(checkpoint_path)
     model_height = int(checkpoint["resize"]["height"])
     model_width = int(checkpoint["resize"]["width"])
+    temperature = float(checkpoint.get("temperature", 1.0))
 
     processed_volume, spacing_zyx, preprocess_report = load_and_preprocess_series(series_dir, preprocess_config)
     stack_volume = build_input_stack_volume(processed_volume)
@@ -322,6 +330,7 @@ def run_deployment_inference(
             onnx_path=onnx_path,
             sample_batch=sample_batch,
             num_threads=num_threads,
+            temperature=temperature,
         )
 
     session = create_onnx_session(onnx_path, num_threads=num_threads)
@@ -332,6 +341,7 @@ def run_deployment_inference(
         model_width=model_width,
         batch_size=batch_size,
         original_hw=(int(processed_volume.shape[1]), int(processed_volume.shape[2])),
+        temperature=temperature,
     )
     if enable_postprocess:
         prediction_volume = apply_day6_postprocess(probabilities_bchw)
@@ -374,6 +384,7 @@ def run_deployment_inference(
         "overlay_dir": str(overlay_dir),
         "overlay_count": int(len(saved_overlays)),
         "postprocessing_enabled": bool(enable_postprocess),
+        "calibration": checkpoint.get("calibration", {"temperature": temperature}),
         "uncertainty_summary": summarize_uncertainty(uncertainty, foreground_mask=prediction_volume > 0),
         "onnx_validation": validation_report,
         "class_voxel_counts": {

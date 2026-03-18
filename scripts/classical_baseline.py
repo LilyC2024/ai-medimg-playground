@@ -366,6 +366,7 @@ def main() -> int:
             "bone_mask": bone_stats,
             "brain_bone_overlap_voxels": overlap_voxels,
             "brain_bone_overlap_ratio": overlap_ratio,
+            "brain_selection": segmentation.brain_selection,
             "timings_seconds": {
                 "raw_load": raw_load_seconds,
                 "preprocess": preprocess_seconds,
@@ -403,6 +404,7 @@ def main() -> int:
     print(f"Per-slice pseudo labels: {saved_slice_count} files in {pseudo_dir / 'slices'}")
     print(f"Overlay PNGs: {len(overlay_files)} files in {overlays_dir}")
     print(f"Report: {report_path}")
+    print(f"Adaptive brain-mask method: {segmentation.brain_selection.get('method', 'unknown')}")
     print(
         "Timing (seconds): "
         f"raw_load={raw_load_seconds:.3f}, preprocess={preprocess_seconds:.3f}, segmentation={seg_seconds:.3f}",

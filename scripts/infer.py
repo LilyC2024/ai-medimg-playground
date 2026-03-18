@@ -18,6 +18,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from calibration import apply_temperature  # noqa: E402
 from data.ct25d_dataset import CT25DDataset  # noqa: E402
 from models.unet_small import UNetSmall, compute_segmentation_metrics  # noqa: E402
 from robustness import (  # noqa: E402
@@ -51,23 +52,20 @@ def _predict_probabilities(
     images: torch.Tensor,
     device: torch.device,
     uncertainty_method: str,
+    temperature: float,
 ) -> torch.Tensor:
     resized_images = images.to(device)
-    logits = model(resized_images)
+    logits = apply_temperature(model(resized_images), temperature)
     probabilities = torch.softmax(logits, dim=1)
 
     if uncertainty_method != "tta":
         return probabilities
 
-    augmentations = (
-        (),
-        (-1,),
-        (-2,),
-    )
+    augmentations = ((), (-1,), (-2,))
     probability_sum = probabilities
     for dims in augmentations[1:]:
         flipped_images = torch.flip(resized_images, dims=dims)
-        flipped_logits = model(flipped_images)
+        flipped_logits = apply_temperature(model(flipped_images), temperature)
         probability_sum = probability_sum + torch.flip(torch.softmax(flipped_logits, dim=1), dims=dims)
     return probability_sum / float(len(augmentations))
 
@@ -109,6 +107,7 @@ def main() -> int:
     model.eval()
     device = torch.device(args.device)
     model.to(device)
+    temperature = float(checkpoint.get("temperature", 1.0))
 
     resize_height = int(checkpoint["resize"]["height"])
     resize_width = int(checkpoint["resize"]["width"])
@@ -126,7 +125,7 @@ def main() -> int:
             images = batch["image"].float()
             targets = batch["mask"].long()
             resized_images = F.interpolate(images, size=(resize_height, resize_width), mode="bilinear", align_corners=False)
-            probabilities = _predict_probabilities(model, resized_images, device=device, uncertainty_method=args.uncertainty_method)
+            probabilities = _predict_probabilities(model, resized_images, device=device, uncertainty_method=args.uncertainty_method, temperature=temperature)
             probabilities = F.interpolate(
                 probabilities.cpu(),
                 size=targets.shape[-2:],
@@ -219,6 +218,7 @@ def main() -> int:
             "method": args.uncertainty_method,
             "summary": uncertainty_summary,
         },
+        "calibration": checkpoint.get("calibration", {"temperature": temperature}),
         "postprocessing": {
             "enabled": bool(not args.disable_postprocess),
             "brain_min_voxels": int(args.brain_min_voxels),
@@ -235,7 +235,7 @@ def main() -> int:
     print(f"Saved predictions: {prediction_path}")
     print(f"Saved overlays: {overlay_dir}")
     print(f"Saved inference report: {report_path}")
-    print(f"Dice={metrics['dice']:.4f} IoU={metrics['iou']:.4f}")
+    print(f"Dice={metrics['dice']:.4f} IoU={metrics['iou']:.4f} temperature={temperature:.4f}")
     return 0
 
 

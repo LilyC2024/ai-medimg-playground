@@ -21,6 +21,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from calibration import fit_temperature, summarize_temperature_scaling  # noqa: E402
 from data.ct25d_dataset import CT25DDataset, build_default_train_transforms  # noqa: E402
 from models.unet_small import UNetSmall, combined_dice_ce_loss, compute_segmentation_metrics  # noqa: E402
 from visualization import save_day5_curves  # noqa: E402
@@ -111,12 +112,23 @@ def _make_loader(dataset: Dataset, batch_size: int, shuffle: bool, num_workers: 
     )
 
 
+def _estimate_class_weights(dataset: Dataset, num_classes: int) -> torch.Tensor:
+    counts = torch.zeros(num_classes, dtype=torch.float64)
+    for index in range(len(dataset)):
+        mask = dataset[index]["mask"].reshape(-1)
+        counts += torch.bincount(mask, minlength=num_classes).to(torch.float64)
+    weights = counts.sum() / counts.clamp_min(1.0)
+    weights = weights / weights.mean().clamp_min(1e-6)
+    return weights.to(dtype=torch.float32)
+
+
 def _run_epoch(
     model: UNetSmall,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer | None,
     device: torch.device,
     num_classes: int,
+    class_weights: torch.Tensor | None,
 ) -> dict[str, float]:
     is_train = optimizer is not None
     model.train(is_train)
@@ -129,7 +141,7 @@ def _run_epoch(
 
         with torch.set_grad_enabled(is_train):
             logits = model(images)
-            loss = combined_dice_ce_loss(logits, masks, num_classes=num_classes)
+            loss = combined_dice_ce_loss(logits, masks, num_classes=num_classes, class_weights=class_weights)
             if is_train:
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
@@ -148,6 +160,20 @@ def _run_epoch(
         "dice": mean_dice,
         "iou": mean_iou,
     }
+
+
+def _collect_logits_and_targets(model: UNetSmall, loader: DataLoader, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
+    model.eval()
+    all_logits = []
+    all_targets = []
+    with torch.no_grad():
+        for batch in loader:
+            images = batch["image"].to(device)
+            masks = batch["mask"].to(device)
+            logits = model(images)
+            all_logits.append(logits.cpu())
+            all_targets.append(masks.cpu())
+    return torch.cat(all_logits, dim=0), torch.cat(all_targets, dim=0)
 
 
 def main() -> int:
@@ -178,6 +204,8 @@ def main() -> int:
     train_loader = _make_loader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, seed=args.seed)
     eval_loader = _make_loader(eval_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, seed=args.seed)
 
+    class_weights = _estimate_class_weights(train_dataset, num_classes=4).to(device)
+
     model = UNetSmall(in_channels=3, num_classes=4, base_channels=args.base_channels).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
@@ -195,8 +223,8 @@ def main() -> int:
     train_start = time.perf_counter()
 
     for epoch in range(1, args.epochs + 1):
-        train_metrics = _run_epoch(model, train_loader, optimizer, device=device, num_classes=4)
-        eval_metrics = _run_epoch(model, eval_loader, optimizer=None, device=device, num_classes=4)
+        train_metrics = _run_epoch(model, train_loader, optimizer, device=device, num_classes=4, class_weights=class_weights)
+        eval_metrics = _run_epoch(model, eval_loader, optimizer=None, device=device, num_classes=4, class_weights=class_weights)
 
         history["epoch"].append(epoch)
         history["train_loss"].append(train_metrics["loss"])
@@ -223,6 +251,8 @@ def main() -> int:
                     "best_eval_dice": best_eval_dice,
                     "seed": args.seed,
                     "eval_split": eval_split,
+                    "temperature": 1.0,
+                    "class_weights": class_weights.cpu().tolist(),
                 },
                 best_checkpoint_path,
             )
@@ -237,10 +267,29 @@ def main() -> int:
     curves_path = output_dir / "day5_curves.png"
     save_day5_curves(history=history, output_path=curves_path)
 
+    best_checkpoint = torch.load(best_checkpoint_path, map_location=device)
+    model.load_state_dict(best_checkpoint["state_dict"])
+    logits, targets = _collect_logits_and_targets(model, eval_loader, device=device)
+    temperature = fit_temperature(logits.to(device), targets.to(device)) if logits.numel() > 0 else 1.0
+    calibration_summary = summarize_temperature_scaling(logits, targets, temperature) if logits.numel() > 0 else {
+        "temperature": 1.0,
+        "nll_before": 0.0,
+        "nll_after": 0.0,
+        "ece_before": 0.0,
+        "ece_after": 0.0,
+    }
+    best_checkpoint["temperature"] = float(temperature)
+    best_checkpoint["calibration"] = calibration_summary
+    torch.save(best_checkpoint, best_checkpoint_path)
+
+    calibration_report_path = output_dir / "day5_calibration_report.json"
+    calibration_report_path.write_text(json.dumps(calibration_summary, indent=2), encoding="utf-8")
+
     report = {
         "index_path": str(index_path),
         "best_checkpoint_path": str(best_checkpoint_path),
         "curves_path": str(curves_path),
+        "calibration_report_path": str(calibration_report_path),
         "seed": int(args.seed),
         "epochs": int(args.epochs),
         "batch_size": int(args.batch_size),
@@ -251,11 +300,14 @@ def main() -> int:
         "train_samples": int(len(train_dataset)),
         "eval_samples": int(len(eval_dataset)),
         "best_eval_dice": float(best_eval_dice),
+        "class_weights": [float(value) for value in class_weights.cpu().tolist()],
         "history": history,
+        "temperature": float(temperature),
+        "calibration": calibration_summary,
         "train_seconds": float(train_seconds),
         "notes": [
             "Pseudo labels from Day 3 are used as supervision targets.",
-            "Current repository has one patient/series, so evaluation falls back to the train split.",
+            "When only one series is available, Day 4 now creates buffered intra-series holdout slices for evaluation.",
         ],
     }
     report_path = output_dir / "day5_train_report.json"
@@ -263,6 +315,7 @@ def main() -> int:
 
     print(f"Saved best checkpoint: {best_checkpoint_path}")
     print(f"Saved curves: {curves_path}")
+    print(f"Saved calibration report: {calibration_report_path}")
     print(f"Saved training report: {report_path}")
     return 0
 

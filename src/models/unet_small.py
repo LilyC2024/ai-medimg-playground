@@ -115,8 +115,9 @@ def combined_dice_ce_loss(
     num_classes: int,
     ce_weight: float = 0.5,
     dice_weight: float = 0.5,
+    class_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    ce = F.cross_entropy(logits, targets.long())
+    ce = F.cross_entropy(logits, targets.long(), weight=class_weights)
     dice = multiclass_dice_loss(logits, targets, num_classes=num_classes, include_background=False)
     return ce_weight * ce + dice_weight * dice
 

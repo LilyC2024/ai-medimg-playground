@@ -19,6 +19,7 @@ if str(SRC_DIR) not in sys.path:
 from config import load_app_config  # noqa: E402
 from data.ct25d_dataset import (  # noqa: E402
     assign_group_splits,
+    assign_single_case_slice_splits,
     build_case_index,
     build_default_train_transforms,
     create_dataloaders,
@@ -66,11 +67,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable train-time intensity jitter in the sample visualization loader.",
     )
+    parser.add_argument(
+        "--intra-series-context-radius",
+        type=int,
+        default=1,
+        help="Slice radius excluded around intra-series val/test holdout bands when only one case is available.",
+    )
     return parser
 
 
 def _pick_preview_split(index_df: pd.DataFrame) -> str:
-    for split_name in ("train", "val", "test"):
+    for split_name in ("val", "test", "train"):
         if int((index_df["split"] == split_name).sum()) > 0:
             return split_name
     raise ValueError("Index has no rows to visualize.")
@@ -99,7 +106,21 @@ def main() -> int:
         test_ratio=args.test_ratio,
         seed=args.seed,
     )
-    index_df = build_case_index(cases=[case], group_split_map=group_split_map)
+    slice_split_overrides = None
+    if len(group_split_map) == 1:
+        slice_split_overrides = {
+            case.split_group_id: assign_single_case_slice_splits(
+                depth=case.volume_shape_zyx[0],
+                val_ratio=args.val_ratio,
+                test_ratio=args.test_ratio,
+                context_radius=args.intra_series_context_radius,
+            ),
+        }
+    index_df = build_case_index(
+        cases=[case],
+        group_split_map=group_split_map,
+        slice_split_overrides=slice_split_overrides,
+    )
 
     index_path = Path(args.index_path).expanduser().resolve() if args.index_path else (config.processed_dir / "index.csv")
     index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +150,7 @@ def main() -> int:
     )
 
     leakage_summary = (
-        "Single patient/series detected; all slices assigned to train to avoid leakage."
+        "Single patient/series detected; contiguous val/test slice bands plus context buffers were created to reduce train/holdout leakage."
         if index_df["split_group_id"].nunique() < 2
         else "Patient/series groups were assigned to one split each."
     )
@@ -144,6 +165,8 @@ def main() -> int:
         "case_spacing_zyx_mm": [float(v) for v in case.spacing_zyx],
         "summary": summarize_index(index_df),
         "group_split_map": group_split_map,
+        "slice_split_overrides": slice_split_overrides,
+        "buffer_slice_count": int((index_df["split"] == "buffer").sum()),
         "leakage_summary": leakage_summary,
         "train_transforms": {
             "flip": True,
