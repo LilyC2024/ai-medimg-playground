@@ -110,6 +110,10 @@ Output contract:
 
 ## Outputs
 
+Repository cleanup note:
+- The repository keeps one canonical sample input under `data/dicom_series_01/` plus a compact set of reference outputs needed to understand and run the project.
+- Large duplicate demos, repeat deployment runs, and regenerate-able overlay bundles are intentionally omitted from versioned storage to keep the workspace smaller and easier to navigate.
+
 Day 1:
 - `outputs/day1_metadata.json`
 - `outputs/day1_hu_hist.png`
