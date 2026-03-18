@@ -1,23 +1,26 @@
 # Documentation Guide
 
-This folder now holds the canonical project documentation for the repository.
+This folder holds the main portfolio-facing documentation for the repository.
 
 ## Start Here
 
-- [README.md](C:/AI/ai-medimg-playground/README.md): Main runbook, outputs, limitations, and command reference.
-- [project_journal.md](C:/AI/ai-medimg-playground/docs/project_journal.md): Consolidated narrative summary of Day 1 to Day 7 plus the limitation-improvement pass.
+- [../README.md](../README.md): main project overview, quickstart, reproducibility checklist, and deployment summary
+- [one_page_summary.md](one_page_summary.md): 1-page executive overview of the project story
+- [interview_notes.md](interview_notes.md): concise talking points for design choices, tradeoffs, and next steps
+- [release_notes_v1.0.md](release_notes_v1.0.md): Day 8 release summary
 
 ## Core Reference Docs
 
-- [model_card.md](C:/AI/ai-medimg-playground/docs/model_card.md): Intended use, constraints, and review guidance.
-- [limitation_improvements.md](C:/AI/ai-medimg-playground/docs/limitation_improvements.md): Detailed write-up of the improvement pass and measured changes.
+- [project_journal.md](project_journal.md): consolidated Day 1 to Day 7 narrative plus the limitation-improvement pass
+- [model_card.md](model_card.md): intended use, limitations, and review guidance
+- [limitation_improvements.md](limitation_improvements.md): explicit description of the mitigation pass and measured improvements
 
 ## Focused Milestone Notes
 
-- [day4_data_module.md](C:/AI/ai-medimg-playground/docs/day4_data_module.md): 2.5D dataset and split-building details.
-- [day5_unet_cpu.md](C:/AI/ai-medimg-playground/docs/day5_unet_cpu.md): CPU training and inference notes for the lightweight U-Net stage.
-- [day7_deploy.md](C:/AI/ai-medimg-playground/docs/day7_deploy.md): ONNX/CLI/API deployment contract and usage.
+- [day4_data_module.md](day4_data_module.md): 2.5D dataset construction and split logic
+- [day5_unet_cpu.md](day5_unet_cpu.md): CPU training and inference notes for the lightweight U-Net stage
+- [day7_deploy.md](day7_deploy.md): ONNX, CLI, API, and deployment contract details
 
-## Cleanup Note
+## Documentation Cleanup Note
 
-The older `text summary/` folder was consolidated into [project_journal.md](C:/AI/ai-medimg-playground/docs/project_journal.md) so the repo keeps one primary documentation tree instead of two parallel sets of summaries.
+The older `text summary/` folder was consolidated into [project_journal.md](project_journal.md) so the repository keeps one primary documentation tree instead of parallel summary tracks.

@@ -1,84 +1,84 @@
 # AI Medical Imaging Playground
 
-Reference pipeline for CT head volumes across seven stages:
-- Day 1: robust DICOM ingestion and HU validation
-- Day 2: preprocessing (resampling, ROI crop, normalization, cache)
-- Day 3: classical segmentation baseline (bone + brain-ish pseudo labels)
-- Day 4: 2.5D dataset builder, index CSV, and training-ready dataloaders
-- Day 5: lightweight 2.5D U-Net training, inference, and overlay review
-- Day 6: robustness checks, postprocessing, uncertainty proxy, and standardized reporting
-- Day 7: deployable ONNX export, CPU inference CLI, optional FastAPI, and Docker packaging
+Small, end-to-end CT head segmentation project built as an 8-day portfolio sprint: from raw DICOM loading to preprocessing, pseudo-label generation, lightweight 2.5D training, robustness checks, ONNX export, and CPU deployment.
 
-## Quick Start
+The goal of this repository is not to claim clinical performance. It is to show a hiring-ready engineering story:
+- define a constrained imaging problem
+- build a reproducible pipeline with clear artifacts
+- measure what improved and what still limits confidence
+- package the result so another person can run it
+
+## What This Repo Demonstrates
+
+- Robust DICOM ingestion with HU validation and metadata checks
+- Reproducible preprocessing and cached volume generation
+- A classical baseline used to create pseudo labels when manual labels are unavailable
+- A lightweight 2.5D U-Net trained on CPU
+- Holdout-aware evaluation, calibration, and uncertainty summaries
+- ONNX export plus deterministic CPU inference through a CLI
+- Clear documentation, tests, and release-ready repo structure
+
+## Pipeline Architecture
+
+```mermaid
+flowchart LR
+    A[Raw DICOM series] --> B[Day 1\nLoad + validate + HU conversion]
+    B --> C[Day 2\nResample + crop + normalize]
+    C --> D[Processed volume cache]
+    D --> E[Day 3\nClassical segmentation baseline]
+    E --> F[Pseudo labels + overlays]
+    D --> G[Day 4\n2.5D stack builder + index splits]
+    F --> H[Day 5\nCPU U-Net training]
+    G --> H
+    H --> I[Day 6\nInference + calibration + reporting]
+    I --> J[Day 7\nONNX export + CLI + optional API]
+    J --> K[Day 8\nDocs + tests + release]
+```
+
+## Results Snapshot
+
+Repository demo state after the limitation-improvement pass:
+
+| Area | Snapshot |
+| --- | --- |
+| Data split | `17 train / 4 val / 4 test / 4 buffer` slices |
+| Day 5 holdout Dice | `0.3302` |
+| Day 5 holdout IoU | `0.2626` |
+| Calibration ECE | `0.4526 -> 0.1588` after temperature scaling |
+| Day 7 ONNX validation | Passed, `max_abs_diff=3.624e-05` |
+| Day 7 CLI determinism | Same SHA-256 mask hash across repeated runs |
+| Day 7 deployment Dice | `0.3331` vs refreshed Day 3 pseudo labels |
+
+Example artifacts already included in the repo:
+
+![Preprocessing snapshot](outputs/day2_before_after.png)
+
+![Training curves](outputs/day5_curves.png)
+
+## Dataset Notes
+
+- The repository includes one sample CT head DICOM series in `data/dicom_series_01/`.
+- No private labels or patient annotations are included.
+- Day 3 generates pseudo labels from a classical segmentation baseline; later metrics should be interpreted as pipeline-validation metrics, not clinical accuracy.
+- The sample scan uses relatively thick slices, which is one reason the final model uses a 2.5D design instead of full 3D training.
+
+## Quickstart
 
 ```powershell
 python -m venv .venv
 ./.venv/Scripts/Activate.ps1
 python -m pip install -r requirements.txt
+./.venv/Scripts/python.exe -m unittest discover -s tests -v
 ```
 
-Optional path overrides:
-
-```powershell
-$env:DICOM_SERIES_DIR="C:/path/to/dicom_series"
-$env:DICOM_OUTPUT_DIR="C:/path/to/outputs"
-$env:DICOM_PROCESSED_DIR="C:/path/to/data_processed"
-```
-
-## Documentation
-
-- [docs/README.md](C:/AI/ai-medimg-playground/docs/README.md): documentation index
-- [docs/project_journal.md](C:/AI/ai-medimg-playground/docs/project_journal.md): consolidated Day 1 to Day 7 journal
-- [docs/model_card.md](C:/AI/ai-medimg-playground/docs/model_card.md): model scope and review guidance
-- [docs/limitation_improvements.md](C:/AI/ai-medimg-playground/docs/limitation_improvements.md): improvement-pass details and measured changes
-
-## Main Commands
-
-Day 1 (inspection and diagnostics):
-
-```powershell
-./.venv/Scripts/python.exe scripts/inspect_series.py
-```
-
-Day 2 (preprocessing and cache generation):
-
-```powershell
-./.venv/Scripts/python.exe scripts/preprocess_series.py
-```
-
-Day 3 (classical masks, pseudo labels, overlay review):
-
-```powershell
-./.venv/Scripts/python.exe scripts/classical_baseline.py
-```
-
-Day 4 (2.5D index, dataset module, and batch sanity check):
-
-```powershell
-./.venv/Scripts/python.exe scripts/make_index.py
-```
-
-Day 5 (lightweight U-Net training on CPU + full-series inference):
-
-```powershell
-./.venv/Scripts/python.exe scripts/train.py
-./.venv/Scripts/python.exe scripts/infer.py
-```
-
-Day 6 (reporting and automated checks):
-
-```powershell
-./.venv/Scripts/python.exe scripts/report.py
-./.venv/Scripts/python.exe scripts/check.py
-```
-
-Day 7 (deployable CPU inference from raw DICOM):
+Run the included CPU deployment demo end to end:
 
 ```powershell
 ./.venv/Scripts/python.exe deploy/cli_infer.py `
   --series-dir data/dicom_series_01 `
   --checkpoint saved_models/best.pt `
   --onnx-path onnx/model.onnx `
+  --processed-dir data_processed `
   --output-dir outputs/day7_infer_demo `
   --threads 1 `
   --batch-size 1 `
@@ -86,14 +86,81 @@ Day 7 (deployable CPU inference from raw DICOM):
   --force-export
 ```
 
-Optional Day 7 variations:
+## Repro Checklist
+
+Use this sequence for a clean rerun from the bundled sample data:
+
+1. Install dependencies from `requirements.txt`.
+2. Inspect the raw series:
 
 ```powershell
-./.venv/Scripts/python.exe deploy/cli_infer.py --mask-format nii.gz --output-formats mask
-python -m uvicorn deploy.app:app --host 0.0.0.0 --port 8000
-docker build -t ai-medimg-day7 .
-docker run --rm -p 8000:8000 ai-medimg-day7
+./.venv/Scripts/python.exe scripts/inspect_series.py
 ```
+
+3. Generate the processed cache:
+
+```powershell
+./.venv/Scripts/python.exe scripts/preprocess_series.py
+```
+
+4. Create pseudo labels and overlays:
+
+```powershell
+./.venv/Scripts/python.exe scripts/classical_baseline.py
+```
+
+5. Build the Day 4 index and preview the loader:
+
+```powershell
+./.venv/Scripts/python.exe scripts/make_index.py
+```
+
+6. Train and evaluate the lightweight model:
+
+```powershell
+./.venv/Scripts/python.exe scripts/train.py
+./.venv/Scripts/python.exe scripts/infer.py
+```
+
+7. Generate the Day 6 report package:
+
+```powershell
+./.venv/Scripts/python.exe scripts/report.py
+./.venv/Scripts/python.exe scripts/check.py
+```
+
+8. Run deployable CPU inference from raw DICOM:
+
+```powershell
+./.venv/Scripts/python.exe deploy/cli_infer.py `
+  --series-dir data/dicom_series_01 `
+  --checkpoint saved_models/best.pt `
+  --onnx-path onnx/model.onnx `
+  --processed-dir data_processed `
+  --output-dir outputs/day7_infer_demo `
+  --threads 1 `
+  --batch-size 1 `
+  --mask-format npz `
+  --force-export
+```
+
+9. Optional deployment paths:
+
+```powershell
+python -m uvicorn deploy.app:app --host 0.0.0.0 --port 8000
+docker build -t ai-medimg-v1 .
+docker run --rm -p 8000:8000 ai-medimg-v1
+```
+
+## Tests
+
+The test suite covers:
+- DICOM loading
+- preprocessing
+- classical segmentation helpers
+- 2.5D dataset construction and deterministic transforms
+- segmentation metrics
+- a Day 8 end-to-end CLI smoke test
 
 Run all tests:
 
@@ -101,194 +168,57 @@ Run all tests:
 ./.venv/Scripts/python.exe -m unittest discover -s tests -v
 ```
 
-## Day 7 Deployment Contract
+## Deployment Contract
 
 Input contract:
-- `deploy/cli_infer.py` expects a folder containing one axial CT DICOM series.
-- The checkpoint must match the exported ONNX graph (`saved_models/best.pt` -> `onnx/model.onnx`).
-- The FastAPI `/predict` endpoint expects a ZIP file whose contents are the DICOM slices for one series.
+- `deploy/cli_infer.py` expects one axial CT DICOM series folder.
+- `saved_models/best.pt` and `onnx/model.onnx` must match the exported model configuration.
+- The optional FastAPI `/predict` endpoint expects a ZIP file containing a single DICOM series.
 
 Output contract:
-- `prediction_mask.npz` stores `predicted_labels` as a `(Z, Y, X)` uint8 volume plus `spacing_zyx`.
+- `prediction_mask.npz` stores `predicted_labels` as a `(Z, Y, X)` `uint8` volume and `spacing_zyx`.
 - `prediction_mask.nii.gz` is available with `--mask-format nii.gz`.
-- `overlays/` contains one PNG per slice with grayscale background, predicted mask overlay, and uncertainty heatmap.
-- `day7_infer_report.json` records runtime settings, ONNX validation results, class voxel counts, and uncertainty summary.
-- `day7_preprocess_report.json` records raw-vs-processed shape, spacing, crop box, and preprocessing parameters.
+- `day7_infer_report.json` stores runtime settings, class voxel counts, uncertainty summary, and ONNX validation info.
+- `day7_preprocess_report.json` stores raw-vs-processed shape, spacing, crop box, and preprocessing configuration.
+- `overlays/` stores per-slice PNG overlays when `--output-formats overlays` is enabled.
 
-## Outputs
+## Design Choices
 
-Repository cleanup note:
-- The repository keeps one canonical sample input under `data/dicom_series_01/` plus a compact set of reference outputs needed to understand and run the project.
-- Large duplicate demos, repeat deployment runs, and regenerate-able overlay bundles are intentionally omitted from versioned storage to keep the workspace smaller and easier to navigate.
+- **2.5D instead of 3D:** The sample scan has coarse slice spacing and the project is intentionally CPU-friendly. Using `(z-1, z, z+1) -> z` captures some through-plane context without the memory and engineering overhead of full 3D training.
+- **Pseudo labels instead of manual labels:** No expert annotations are bundled, so the repo uses a classical baseline to bootstrap supervision and focuses on transparent documentation of that tradeoff.
+- **CPU-first deployment:** The main deployment goal is reproducibility and portability. ONNX Runtime on CPU is easier to demo reliably than a GPU-specific stack.
 
-Day 1:
-- `outputs/day1_metadata.json`
-- `outputs/day1_hu_hist.png`
-- `outputs/day1_montage.png`
+More explanation is in [docs/interview_notes.md](docs/interview_notes.md).
 
-Day 2:
-- `data_processed/volume.nii.gz` (or `volume.npz`)
-- `outputs/day2_before_after.png`
-- `outputs/day2_preprocess_report.json`
+## Documentation Map
 
-Day 3:
-- `data_processed/pseudo_labels/pseudo_labels_3d.npz`
-- `data_processed/pseudo_labels/slices/slice_*.npz`
-- `outputs/overlays/slice_*.png`
-- `outputs/day3_classical_report.json`
-
-Day 4:
-- `src/data/ct25d_dataset.py`
-- `scripts/make_index.py`
-- `data_processed/index.csv`
-- `outputs/day4_batch_viz.png`
-- `outputs/day4_data_report.json`
-
-Day 5:
-- `src/models/unet_small.py`
-- `scripts/train.py`
-- `scripts/infer.py`
-- `saved_models/best.pt`
-- `outputs/day5_curves.png`
-- `outputs/day5_overlays/`
-- `outputs/day5_train_report.json`
-- `outputs/day5_infer_report.json`
-
-Day 6:
-- `src/robustness.py`
-- `scripts/report.py`
-- `scripts/check.py`
-- `docs/model_card.md`
-- `outputs/report.md`
-- `outputs/report_montage.png`
-
-Day 7:
-- `deploy/cli_infer.py`
-- `deploy/inference_runtime.py`
-- `deploy/app.py`
-- `onnx/model.onnx`
-- `outputs/day7_infer_demo/`
-- `Dockerfile`
-
-## Verified Day 7 Demo Results
-
-Repository demo run on March 18, 2026 after the limitation-improvement pass:
-- ONNX export written to `onnx/model.onnx`.
-- ONNX vs PyTorch validation on a 4-slice sample batch passed with `max_abs_diff=3.624e-05` and `max_prob_diff=6.378e-06`.
-- The CLI produced `29` overlays plus `prediction_mask.npz` under `outputs/day7_infer_demo/`.
-- Two back-to-back CPU CLI runs produced the same SHA-256 hash for `prediction_mask.npz`: `249012A93CCF75E841E57CF6975067443A1A907B939FBDF5B9CBD34B908124A2`.
-- Against the refreshed Day 3 pseudo labels, the deployment path measured Dice `0.3331` and IoU `0.2314` on the sample series.
-
-## Pipeline Summary
-
-```text
-Raw DICOM series
-  -> slice ordering + decode + HU conversion
-  -> preprocessing (spacing, head ROI crop, HU clip/normalize)
-  -> processed cache volume
-  -> classical segmentation (bone, brain-ish masks)
-  -> postprocessing (morphology, connected components, hole filling)
-  -> pseudo labels + visual overlays + non-GT quality metrics
-  -> 2.5D stack builder ((z-1, z, z+1) predicts z)
-  -> slice-level index CSV + group-safe split labels
-  -> PyTorch Dataset/DataLoader for training-time ingestion
-  -> lightweight 2.5D U-Net training on pseudo labels
-  -> full-series inference + overlay comparison against classical baseline
-  -> uncertainty proxy + postprocessing + standardized evaluation report
-  -> ONNX export + CPU runtime CLI + optional API/container deployment
-```
-
-## Key Tuning Parameters
-
-Preprocessing (`scripts/preprocess_series.py`):
-- spacing: `--xy-spacing-mm`, `--target-z-mm`, `--keep-z-if-coarse`
-- crop: `--head-threshold-hu`, `--mask-opening-iters`, `--mask-closing-iters`, `--crop-margin-mm`
-- intensity: `--hu-clip-min`, `--hu-clip-max`, `--normalize-min`, `--normalize-max`
-- cache: `--save-format {nii.gz,npz}`
-
-Classical segmentation (`scripts/classical_baseline.py`):
-- bone mask: `--bone-threshold-hu`, `--bone-open-iters`, `--bone-close-iters`, `--bone-min-voxels`
-- brain-ish mask: `--brain-window-center`, `--brain-window-width`, `--brain-norm-min`, `--brain-norm-max`, `--brain-head-threshold-hu`
-- cleanup: `--brain-fill-holes`, `--brain-min-voxels`, `--brain-keep-largest`, `--bone-keep-largest`
-- overlay export: `--overlay-max-slices`, `--overlay-min-representative`
-
-2.5D data module (`scripts/make_index.py`):
-- splits: `--train-ratio`, `--val-ratio`, `--test-ratio`, `--seed`
-- loader preview: `--batch-size`, `--num-workers`
-- CPU-friendly augmentations: `--rotation-deg`, `--disable-intensity-jitter`
-
-Lightweight DL training (`scripts/train.py`):
-- optimization: `--epochs`, `--batch-size`, `--learning-rate`
-- reproducibility: `--seed`, `--num-workers`, `--num-threads`
-- model/input size: `--image-size`, `--base-channels`
-
-Inference (`scripts/infer.py`):
-- runtime: `--checkpoint`, `--batch-size`, `--device`
-- paths: `--index-path`, `--processed-dir`, `--output-dir`
-- robustness: `--uncertainty-method`, `--disable-postprocess`, `--brain-min-voxels`, `--bone-min-voxels`
-
-Deployment (`deploy/cli_infer.py`):
-- artifact control: `--onnx-path`, `--force-export`, `--skip-validation`
-- runtime: `--threads`, `--batch-size`, `--mask-format`, `--output-formats`
-- preprocessing: `--xy-spacing-mm`, `--target-z-mm`, `--head-threshold-hu`, `--crop-margin-mm`
-- postprocessing: `--disable-postprocess`
-
-## Limitation Improvements
-
-A dedicated limitation-reduction pass was run after the Day 7 deployment milestone. The goal was to improve the weakest parts of the pipeline without pretending that unavailable data or clinical labels could be invented.
-
-Applied methods and observed improvements:
-- Threshold brittleness in the Day 3 brain-ish mask was reduced with an adaptive threshold sweep in [classical_seg.py](C:/AI/ai-medimg-playground/src/baselines/classical_seg.py). The selector now evaluates 60 brain-window/head-threshold candidates and records the top-ranked settings. On the sample CT, brain-mask voxel count increased from `1,476` to `10,731`, and slice coverage increased from `12/29` to `25/29`.
-- Single-series evaluation leakage was partially reduced with buffered intra-series holdout bands in [ct25d_dataset.py](C:/AI/ai-medimg-playground/src/data/ct25d_dataset.py) and [make_index.py](C:/AI/ai-medimg-playground/scripts/make_index.py). The index moved from `29` train slices only to `17 train / 4 val / 4 test / 4 buffer`, and Day 5 no longer needs `train-fallback` evaluation.
-- Pseudo-label imbalance was addressed with class-balanced loss weighting in [unet_small.py](C:/AI/ai-medimg-playground/src/models/unet_small.py) and [train.py](C:/AI/ai-medimg-playground/scripts/train.py). On the refreshed holdout split, best eval Dice increased from `0.2456` to `0.3302`.
-- Uncertainty calibration was improved with temperature scaling in [calibration.py](C:/AI/ai-medimg-playground/src/calibration.py), then propagated through [train.py](C:/AI/ai-medimg-playground/scripts/train.py), [infer.py](C:/AI/ai-medimg-playground/scripts/infer.py), and [inference_runtime.py](C:/AI/ai-medimg-playground/deploy/inference_runtime.py). Expected calibration error on the holdout split dropped from `0.4526` to `0.1588`.
-- Deployment consistency was refreshed by re-exporting ONNX from the improved checkpoint and revalidating the CPU CLI. Day 7 deployment Dice against the refreshed pseudo labels increased from `0.2745` to `0.3331`, and repeated CLI runs remained deterministic with matching SHA-256 hashes.
-
-Comparison caveat:
-- The Day 3 pseudo labels are now broader and more anatomically plausible than before, so some before/after segmentation metrics are not perfectly apples-to-apples. Where possible, the comparison above emphasizes methodology improvements, holdout evaluation quality, calibration, and the refreshed deployment run.
-
-The fuller narrative for this pass lives in [docs/limitation_improvements.md](C:/AI/ai-medimg-playground/docs/limitation_improvements.md) and the consolidated [docs/project_journal.md](C:/AI/ai-medimg-playground/docs/project_journal.md).
+- [docs/README.md](docs/README.md): documentation index
+- [docs/one_page_summary.md](docs/one_page_summary.md): one-page executive overview
+- [docs/interview_notes.md](docs/interview_notes.md): design choices, tradeoffs, and failure cases
+- [docs/release_notes_v1.0.md](docs/release_notes_v1.0.md): release summary for `v1.0`
+- [docs/project_journal.md](docs/project_journal.md): consolidated Day 1 to Day 7 journal plus the limitation-improvement pass
+- [docs/model_card.md](docs/model_card.md): model scope and review guidance
+- [docs/limitation_improvements.md](docs/limitation_improvements.md): measured mitigation pass
 
 ## Known Limitations
 
-- This repository currently relies on Day 3 pseudo labels rather than manually annotated ground truth, so the reported metrics are best read as pipeline-validation signals rather than clinical performance claims.
-- The adaptive Day 3 labeling step is more robust than the original fixed-threshold baseline, though scans with pronounced artifacts such as beam hardening, motion, or metal can still benefit from additional safeguards and manual review.
-- The sample study uses relatively thick slices, which can limit through-plane continuity and make some 3D structures harder to segment consistently.
-- The dataset still contains one CT series. Buffered intra-series validation and test holdouts make the internal evaluation more careful, but broader patient-level generalization will benefit from additional studies.
-- Day 5 training is stronger after the pseudo-label and class-balancing improvements, but the supervision signal remains derived rather than expert-annotated.
-- Day 6/7 uncertainty is now temperature-scaled and more useful for prioritizing review, but it should still be treated as a QA aid rather than a calibrated clinical confidence estimate.
-- Day 7 deployment provides a stable CPU-only reference workflow on the sample case; wider operational confidence will come from testing across more scans and annotation-backed benchmarks.
+- Metrics are reported against Day 3 pseudo labels rather than expert annotations, so they are useful pipeline signals rather than clinical claims.
+- The project still uses one bundled CT series, which makes the internal validation more honest than before but does not establish patient-level generalization.
+- Thick-slice geometry limits through-plane continuity and is one reason this repo favors a 2.5D approach.
+- Artifact-heavy scans may still challenge the classical bootstrap stage and the downstream model.
+- The uncertainty outputs are helpful for QA and review prioritization, but they should not be treated as calibrated clinical risk.
 
 ## Repository Layout
 
 ```text
-scripts/
-  inspect_series.py
-  preprocess_series.py
-  classical_baseline.py
-  make_index.py
-  train.py
-  infer.py
-  report.py
-  check.py
-deploy/
-  inference_runtime.py
-  cli_infer.py
-  app.py
-src/
-  dicom_loader.py
-  preprocessing.py
-  baselines/classical_seg.py
-  data/ct25d_dataset.py
-  models/unet_small.py
-  robustness.py
-  visualization.py
-  config.py
-tests/
-  test_loader.py
-  test_preprocessing.py
-  test_classical_seg.py
-  test_ct25d_dataset.py
-  test_unet_metrics.py
-Dockerfile
+data/                 sample DICOM input
+data_processed/       processed volume, pseudo labels, index, predictions
+deploy/               ONNX runtime, CLI, optional FastAPI entrypoint
+docs/                 portfolio-facing documentation and release notes
+outputs/              reference figures and reports
+scripts/              stage-by-stage runnable scripts
+src/                  reusable pipeline modules
+tests/                unit tests and smoke tests
+saved_models/         trained PyTorch checkpoint
+onnx/                 exported ONNX artifact
 ```
