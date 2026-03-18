@@ -25,6 +25,13 @@ $env:DICOM_OUTPUT_DIR="C:/path/to/outputs"
 $env:DICOM_PROCESSED_DIR="C:/path/to/data_processed"
 ```
 
+## Documentation
+
+- [docs/README.md](C:/AI/ai-medimg-playground/docs/README.md): documentation index
+- [docs/project_journal.md](C:/AI/ai-medimg-playground/docs/project_journal.md): consolidated Day 1 to Day 7 journal
+- [docs/model_card.md](C:/AI/ai-medimg-playground/docs/model_card.md): model scope and review guidance
+- [docs/limitation_improvements.md](C:/AI/ai-medimg-playground/docs/limitation_improvements.md): improvement-pass details and measured changes
+
 ## Main Commands
 
 Day 1 (inspection and diagnostics):
@@ -240,7 +247,7 @@ Applied methods and observed improvements:
 Comparison caveat:
 - The Day 3 pseudo labels are now broader and more anatomically plausible than before, so some before/after segmentation metrics are not perfectly apples-to-apples. Where possible, the comparison above emphasizes methodology improvements, holdout evaluation quality, calibration, and the refreshed deployment run.
 
-The fuller narrative for this pass lives in [docs/limitation_improvements.md](C:/AI/ai-medimg-playground/docs/limitation_improvements.md) and [limitation_improvements.md](C:/AI/ai-medimg-playground/text%20summary/limitation_improvements.md).
+The fuller narrative for this pass lives in [docs/limitation_improvements.md](C:/AI/ai-medimg-playground/docs/limitation_improvements.md) and the consolidated [docs/project_journal.md](C:/AI/ai-medimg-playground/docs/project_journal.md).
 
 ## Known Limitations
 

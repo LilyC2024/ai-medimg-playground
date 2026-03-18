@@ -1,60 +1,68 @@
 # Day 5 Lightweight U-Net on CPU
 
-Day 5 adds a compact 2.5D deep-learning stage on top of the Day 4 data module. The model is intentionally small enough to run on CPU: it consumes the three-slice stack `(z-1, z, z+1)`, predicts a 4-class center-slice mask, and trains on the Day 3 pseudo labels so the repository can validate a full learning loop even without manual annotations.
+Day 5 adds the compact 2.5D learning stage to the repository. The model stays CPU-friendly, consumes `(z-1, z, z+1)` stacks, and predicts a 4-class center-slice mask. In the current repo state, this stage also includes class-balanced loss weighting and post-training temperature scaling.
 
-## What was added
+## What This Stage Owns
 
 - `src/models/unet_small.py`
-  - Compact 2D U-Net with reduced channels for CPU-friendly training.
-  - Combined Dice + Cross-Entropy loss.
-  - Multi-class Dice and IoU metric helpers.
+  - compact 2D U-Net
+  - Dice + Cross-Entropy training loss
+  - metric helpers for Dice and IoU
+- `src/calibration.py`
+  - temperature scaling
+  - negative log-likelihood and ECE helpers
 - `scripts/train.py`
-  - Reproducible training loop with seeded `random`, `numpy`, and `torch`.
-  - 256 x 256 resized ROI training on the Day 4 2.5D dataset.
-  - Exports `saved_models/best.pt`, `outputs/day5_curves.png`, and `outputs/day5_train_report.json`.
+  - seeded CPU training loop
+  - class-weight estimation
+  - calibration fitting on the buffered holdout split
 - `scripts/infer.py`
-  - Loads the saved checkpoint and runs inference across the full processed series.
-  - Exports `outputs/day5_overlays/` and `outputs/day5_infer_report.json`.
-- `tests/test_unet_metrics.py`
-  - Verifies Dice and IoU on toy arrays.
+  - full-series inference
+  - temperature-aware probability generation
+  - postprocessing and report export
 
-## Run results from this repository
+## Current Repository Snapshot
 
-Training was run on CPU for 6 epochs with seed `13`, batch size `4`, and input size `256 x 256`.
+The current training run used the improved Day 4 split and refreshed pseudo labels.
 
-- Training time: about `40.37 s`
-- Best eval Dice: `0.2456`
-- Final full-series inference Dice vs pseudo labels: `0.2710`
-- Final full-series inference IoU vs pseudo labels: `0.2239`
-- Processed slice coverage: `29` slices
+- device: `cpu`
+- epochs: `8`
+- train / val samples: `17 / 4`
+- best eval Dice: `0.3302`
+- best eval IoU: `0.2626`
+- training time: about `29.37 s`
 
-Per-class inference Dice against pseudo labels:
+Current full-series inference against the refreshed pseudo labels:
 
-- Class `1` (brain-ish): `0.0146`
-- Class `2` (bone): `0.7984`
-- Class `3` (overlap): near `0`
+- mean Dice: `0.1900`
+- mean IoU: `0.1101`
+- class 1 Dice: `0.0820`
+- class 2 Dice: `0.3579`
+- class 3 Dice: `0.1301`
+
+Current calibration summary:
+
+- temperature: `0.0743`
+- ECE before scaling: `0.4526`
+- ECE after scaling: `0.1588`
 
 ## Interpretation
 
-The model learns the high-contrast bone class much more easily than the softer tissue and overlap classes. That is expected for this setup because:
+This stage is still best understood as a pipeline-validation milestone rather than a clinical segmentation result. The model is now trained and evaluated in a more careful way than the original Day 5 version, but the supervision signal still comes from pseudo labels and the dataset still contains one study.
 
-- supervision is pseudo-label based, not manual GT
-- the dataset contains one patient/series only
-- evaluation falls back to the train split to avoid fake leakage-safe validation
-- the overlap class is extremely sparse
+The practical success is that training, calibration, checkpointing, inference, and overlay export all run end-to-end on CPU in a reproducible way.
 
-So Day 5 should be read as a pipeline validation milestone, not a claim of segmentation quality. The important success is that training, checkpointing, metric computation, inference, and overlay export all work end-to-end on CPU.
-
-## Produced artifacts
+## Produced Artifacts
 
 - `saved_models/best.pt`
 - `outputs/day5_curves.png`
-- `outputs/day5_overlays/`
+- `outputs/day5_calibration_report.json`
 - `outputs/day5_train_report.json`
 - `outputs/day5_infer_report.json`
+- `outputs/day5_overlays/`
 
-## Quality checklist status
+## Validation Status
 
-- Training reproducibility: checked with two repeated seeded 2-epoch runs producing identical histories
-- Inference end-to-end: passed on the full processed series (`29` cropped slices derived from the original `34` raw DICOM slices)
-- Metrics correctness: verified by `tests/test_unet_metrics.py`
+- training loop: verified
+- inference path: verified
+- metric helpers: verified by `tests/test_unet_metrics.py`
+- current unit-test suite: `15/15` passing
