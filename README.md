@@ -51,8 +51,6 @@ Repository demo state after the limitation-improvement pass:
 
 Example artifacts already included in the repo:
 
-![Preprocessing snapshot](outputs/day2_before_after.png)
-
 ![Training curves](outputs/day5_curves.png)
 
 ## Dataset Notes
